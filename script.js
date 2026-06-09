@@ -1,17 +1,17 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // Récupération des données depuis l'API
+  // ========== RÉCUPÉRATION DES DONNÉES DEPUIS L'API ==========
   async function loadData() {
     try {
       const response = await fetch('/api/client-data');
       const data = await response.json();
 
-      // Mise à jour de l'alerte
+      // Alerte
       if (data.alert_amount) {
         document.getElementById('alertAmount').textContent = 
           parseFloat(data.alert_amount).toLocaleString('fr-FR') + ' €';
       }
 
-      // Mise à jour du compte
+      // Compte
       if (data.account_number) {
         document.getElementById('accountNumber').textContent = 'N° ' + data.account_number;
       }
@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('frozenBadge').style.display = 'none';
       }
 
-      // Mise à jour des transactions
+      // Transactions
       if (data.transaction1_name) {
         document.getElementById('t1Name').textContent = data.transaction1_name;
       }
@@ -66,18 +66,19 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('t3Status').textContent = data.transaction3_status;
       }
 
-      // Mise à jour synthèse
+      // Synthèse
       if (data.synthese_total) {
         document.getElementById('syntheseTotal').textContent = 
           parseFloat(data.synthese_total).toLocaleString('fr-FR') + ' €';
       }
 
-      // Mise à jour gestionnaire
+      // Gestionnaire
       if (data.manager_name) {
         document.getElementById('managerName').textContent = data.manager_name;
+        document.getElementById('contactManager').textContent = data.manager_name;
       }
 
-      // Mise à jour modal
+      // Modal
       if (data.holder_lastname) {
         document.getElementById('modalLastname').textContent = data.holder_lastname;
       }
@@ -116,6 +117,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('modalManager').textContent = data.manager_name;
       }
 
+      // Profil
+      if (data.holder_firstname && data.holder_lastname) {
+        document.getElementById('profileName').textContent = 
+          data.holder_firstname + ' ' + data.holder_lastname;
+      }
+
     } catch (err) {
       console.log('Données locales utilisées (Site 2 indisponible)');
     }
@@ -127,28 +134,145 @@ document.addEventListener('DOMContentLoaded', () => {
   // Rafraîchir les données toutes les 30 secondes
   setInterval(loadData, 30000);
 
-  // Modal
-  const modal = document.getElementById('accountModal');
-  const openBtn = document.getElementById('openAccountDetail');
-  const closeBtn = document.getElementById('closeModal');
+  // ========== NAVIGATION ==========
+  window.navigateTo = function(page) {
+    // Cacher toutes les pages
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
 
-  if (openBtn) {
-    openBtn.addEventListener('click', () => {
+    // Afficher la page demandée
+    const targetPage = document.getElementById('page-' + page);
+    if (targetPage) {
+      targetPage.classList.add('active');
+    }
+
+    // Mettre à jour la navigation active
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.classList.remove('active');
+      if (item.dataset.page === page) {
+        item.classList.add('active');
+      }
+    });
+
+    // Scroll en haut
+    window.scrollTo(0, 0);
+  };
+
+  // ========== MODALS ==========
+  window.openModal = function(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
       modal.classList.add('open');
-    });
-  }
+      document.body.style.overflow = 'hidden';
+    }
+  };
 
-  if (closeBtn) {
-    closeBtn.addEventListener('click', () => {
+  window.closeModal = function(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
       modal.classList.remove('open');
-    });
-  }
+      document.body.style.overflow = '';
+    }
+  };
 
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal) modal.classList.remove('open');
+  // Fermer modal en cliquant sur l'overlay
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        overlay.classList.remove('open');
+        document.body.style.overflow = '';
+      }
+    });
   });
 
-  // Balance toggle
+  // ========== BOUTONS ACTIONS ==========
+  window.showVirement = function() {
+    openModal('virementModal');
+  };
+
+  window.showWero = function() {
+    alert('Wero : Fonctionnalité en cours de développement');
+  };
+
+  window.showRIB = function() {
+    openModal('ribModal');
+  };
+
+  window.showPlafonds = function() {
+    openModal('plafondsModal');
+  };
+
+  window.showNotifications = function() {
+    openModal('notifModal');
+  };
+
+  // ========== NAVIGATION PAGES ==========
+  window.showAllAccounts = function() {
+    alert('Tous les comptes : Fonctionnalité en cours de développement');
+  };
+
+  window.showInsurance = function() {
+    alert('Assurances : Fonctionnalité en cours de développement');
+  };
+
+  window.showAllTransactions = function() {
+    alert('Toutes les opérations : Fonctionnalité en cours de développement');
+  };
+
+  window.showTransactionDetail = function(id) {
+    alert('Détail transaction ' + id + ' : Fonctionnalité en cours de développement');
+  };
+
+  window.showSynthese = function() {
+    alert('Synthèse complète : Fonctionnalité en cours de développement');
+  };
+
+  window.contactManager = function() {
+    alert('Contact gestionnaire : Fonctionnalité en cours de développement');
+  };
+
+  window.activateCashback = function() {
+    alert('Cashback activé !');
+  };
+
+  window.showOpportunities = function() {
+    alert('Opportunités : Fonctionnalité en cours de développement');
+  };
+
+  window.showImmobilier = function() {
+    alert('Crédit immobilier : Fonctionnalité en cours de développement');
+  };
+
+  window.showChat = function() {
+    alert('Messagerie : Fonctionnalité en cours de développement');
+  };
+
+  window.showPhone = function() {
+    window.location.href = 'tel:+33140142000';
+  };
+
+  window.showSettings = function() {
+    alert('Paramètres : Fonctionnalité en cours de développement');
+  };
+
+  window.showSecurity = function() {
+    alert('Sécurité : Fonctionnalité en cours de développement');
+  };
+
+  window.showHelp = function() {
+    alert('Aide & Support : Fonctionnalité en cours de développement');
+  };
+
+  window.logout = function() {
+    if (confirm('Voulez-vous vraiment vous déconnecter ?')) {
+      alert('Déconnexion...');
+    }
+  };
+
+  window.goBack = function() {
+    navigateTo('accueil');
+  };
+
+  // ========== BALANCE TOGGLE ==========
   const toggleBtn = document.getElementById('toggleBalance');
   const balanceEl = document.getElementById('mainBalance');
   let shown = false;
@@ -163,12 +287,4 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
-
-  // Nav active state
-  document.querySelectorAll('.nav-item').forEach(item => {
-    item.addEventListener('click', () => {
-      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-      item.classList.add('active');
-    });
-  });
 });
