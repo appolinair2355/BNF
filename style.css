@@ -380,6 +380,32 @@ body {
 .transaction-amount.negative { color: #1a1a2e; }
 .transaction-amount.blocked  { color: #c0392b; }
 
+/* SYNTHÈSE DES COMPTES */
+.synthese-card {
+  background: white;
+  border-radius: 16px;
+  padding: 20px 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.synthese-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.synthese-label {
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+}
+
+.synthese-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: #1a1a2e;
+}
+
 /* MANAGER CARD */
 .manager-card {
   background: linear-gradient(135deg, #1a7a4a 0%, #23a85e 100%);
