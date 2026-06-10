@@ -234,6 +234,13 @@
           <p style="font-size:12px;color:#666;margin-bottom:8px;">Ajoutez (positif) ou retirez (négatif) un montant au solde. Chaque opération apparaîtra dans l'historique du client et de l'administrateur.</p>
           <div class="admin-field"><label>Montant (€)</label><input id="adm_credit_amount" type="text" placeholder="ex : 1000 ou -50"></div>
           <div class="admin-field"><label>Libellé / motif</label><input id="adm_credit_label" type="text" placeholder="ex : Versement initial"></div>
+          <div class="admin-field"><label>Date de l'opération</label><input id="adm_credit_date" type="datetime-local"></div>
+          <div class="admin-field"><label>Statut</label>
+            <select id="adm_credit_status">
+              <option value="À venir">À venir (en attente)</option>
+              <option value="Validé">Validé (immédiat)</option>
+            </select>
+          </div>
           <button class="admin-save-btn admin-save-btn--cat" onclick="adminCreditAccount()">💾 Appliquer le crédit</button>
         </div>
 

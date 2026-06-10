@@ -706,15 +706,20 @@ async function adminCreditAccount() {
   if (!selectedUserId) { showAdminStatus('Sélectionnez d\'abord un utilisateur.', false); return; }
   const amount = document.getElementById('adm_credit_amount').value;
   const label = (document.getElementById('adm_credit_label')?.value || '').trim();
+  const dateVal = (document.getElementById('adm_credit_date')?.value || '').trim();
+  const statusVal = (document.getElementById('adm_credit_status')?.value || 'À venir').trim();
+  const dateISO = dateVal ? new Date(dateVal).toISOString() : '';
   try {
     const r = await fetch('/api/admin/users/' + selectedUserId + '/credit', {
-      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ amount, label })
+      method: 'POST', headers: getAuthHeaders(),
+      body: JSON.stringify({ amount, label, date: dateISO, status: statusVal })
     });
     const d = await r.json();
     if (r.ok) {
       showAdminStatus('✅ Opération enregistrée. Nouveau solde : ' + d.newBalance + ' € — visible dans Historique.', true);
       document.getElementById('adm_credit_amount').value = '';
       const labelEl = document.getElementById('adm_credit_label'); if (labelEl) labelEl.value = '';
+      const dateEl = document.getElementById('adm_credit_date'); if (dateEl) dateEl.value = '';
       const fresh = await fetch('/api/admin/users/' + selectedUserId + '/data', { headers: getAuthHeaders() });
       if (fresh.ok) {
         const data = await fresh.json();

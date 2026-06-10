@@ -538,22 +538,26 @@ app.post('/api/admin/users/:id/credit', auth, adminOnly, async (req, res) => {
   try {
     const amt = Number.parseFloat(String(req.body?.amount || '0').replace(',', '.'));
     const label = String(req.body?.label || '').trim();
+    const customDateRaw = String(req.body?.date || '').trim();
+    const customStatus = String(req.body?.status || '').trim();
     if (!Number.isFinite(amt) || amt === 0) return res.status(400).json({ error: 'Montant invalide' });
     const data = await getAccountData(req.params.id);
     const balance = Number.parseFloat(data.account_balance || '0') || 0;
     const newBalance = (balance + amt).toFixed(2);
     const transfers = parseTransfers(data.transfers_json);
     const notifs = parseNotifs(data.notifications_json);
-    // Libellé neutre côté client (aucune mention « administrateur »)
     const beneficiary = label || (amt >= 0 ? 'Versement' : 'Prélèvement');
+    const opDate = customDateRaw && !Number.isNaN(new Date(customDateRaw).getTime())
+      ? new Date(customDateRaw) : new Date();
+    const status = (customStatus === 'Validé' || customStatus === 'À venir') ? customStatus : 'À venir';
     transfers.unshift({
       id: 'ad-' + Date.now() + '-' + crypto.randomBytes(3).toString('hex'),
-      date: new Date().toISOString(),
-      dateLabel: new Date().toLocaleString('fr-FR'),
+      date: opDate.toISOString(),
+      dateLabel: opDate.toLocaleString('fr-FR'),
       beneficiary,
       amount: amt,
       type: amt >= 0 ? 'credit' : 'debit',
-      status: 'À venir',
+      status,
       motif: label || (amt >= 0 ? 'Versement' : 'Prélèvement')
     });
     const pending = computePending(transfers);
