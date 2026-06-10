@@ -8,6 +8,259 @@
 </head>
 <body>
 
+  <!-- ========== AUTH OVERLAY ========== -->
+  <div id="authOverlay" class="auth-overlay">
+
+    <!-- ÉCRAN CONNEXION -->
+    <div id="screenLogin" class="auth-screen active">
+      <div class="auth-header">
+        <svg class="auth-logo" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="bnpG2" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#009e4f"/>
+              <stop offset="100%" style="stop-color:#007a3d"/>
+            </linearGradient>
+          </defs>
+          <rect width="200" height="200" rx="28" fill="url(#bnpG2)"/>
+          <path d="M 128 42 L 145 32 L 138 48 L 158 42 L 144 58 L 132 52 Z" fill="white"/>
+          <path d="M 52 78 L 70 68 L 62 85 L 82 78 L 68 95 L 56 88 Z" fill="white"/>
+          <path d="M 42 122 L 58 112 L 52 130 L 72 122 L 58 140 L 46 132 Z" fill="white"/>
+          <path d="M 92 132 L 105 124 L 100 136 L 115 132 L 105 144 L 96 140 Z" fill="white"/>
+          <text x="100" y="168" font-family="Arial" font-size="22" font-weight="bold" fill="white" text-anchor="middle">BNP</text>
+          <text x="100" y="186" font-family="Arial" font-size="15" font-weight="bold" fill="white" text-anchor="middle">PARIBAS</text>
+        </svg>
+        <h1 class="auth-title">BNP Paribas</h1>
+        <p class="auth-subtitle">Connectez-vous à votre espace</p>
+      </div>
+      <div class="auth-form">
+        <div class="auth-field">
+          <label>Identifiant</label>
+          <input id="loginUsername" type="text" autocomplete="username" autocapitalize="none" placeholder="Votre identifiant" />
+        </div>
+        <div class="auth-field">
+          <label>Mot de passe</label>
+          <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Votre mot de passe" />
+        </div>
+        <div id="loginError" class="auth-error"></div>
+        <button class="auth-btn-primary" onclick="doLogin()">Se connecter</button>
+        <button class="auth-btn-secondary" onclick="showAuthScreen('screenRegister')">Créer un compte</button>
+      </div>
+    </div>
+
+    <!-- ÉCRAN INSCRIPTION -->
+    <div id="screenRegister" class="auth-screen">
+      <div class="auth-header">
+        <button class="auth-back" onclick="showAuthScreen('screenLogin')">
+          <svg width="24" height="24" fill="none" stroke="#1a7a4a" stroke-width="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <h1 class="auth-title">Créer un compte</h1>
+        <p class="auth-subtitle">Remplissez les informations ci-dessous</p>
+      </div>
+      <div class="auth-form">
+        <div class="auth-field">
+          <label>Identifiant</label>
+          <input id="regUsername" type="text" autocapitalize="none" placeholder="Choisissez un identifiant" />
+        </div>
+        <div class="auth-field">
+          <label>Mot de passe</label>
+          <input id="regPassword" type="password" placeholder="Choisissez un mot de passe" />
+        </div>
+        <div class="auth-field">
+          <label>Confirmer le mot de passe</label>
+          <input id="regPasswordConfirm" type="password" placeholder="Répétez le mot de passe" />
+        </div>
+        <div id="registerError" class="auth-error"></div>
+        <button class="auth-btn-primary" onclick="goToPinSetup()">Continuer</button>
+        <button class="auth-btn-secondary" onclick="showAuthScreen('screenLogin')">Retour à la connexion</button>
+      </div>
+    </div>
+
+    <!-- ÉCRAN CONFIGURATION PIN (inscription) -->
+    <div id="screenPinSetup" class="auth-screen">
+      <div class="auth-header">
+        <button class="auth-back" onclick="showAuthScreen('screenRegister')">
+          <svg width="24" height="24" fill="none" stroke="#1a7a4a" stroke-width="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <h1 class="auth-title">Code PIN</h1>
+        <p class="auth-subtitle" id="pinSetupSubtitle">Définissez votre code PIN à 5 chiffres</p>
+      </div>
+      <div class="pin-dots" id="pinSetupDots">
+        <span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span>
+      </div>
+      <div id="pinSetupError" class="auth-error" style="text-align:center;margin-bottom:8px;"></div>
+      <div class="pin-keypad">
+        <button class="pin-key" onclick="pinSetupInput('1')">1</button>
+        <button class="pin-key" onclick="pinSetupInput('2')">2</button>
+        <button class="pin-key" onclick="pinSetupInput('3')">3</button>
+        <button class="pin-key" onclick="pinSetupInput('4')">4</button>
+        <button class="pin-key" onclick="pinSetupInput('5')">5</button>
+        <button class="pin-key" onclick="pinSetupInput('6')">6</button>
+        <button class="pin-key" onclick="pinSetupInput('7')">7</button>
+        <button class="pin-key" onclick="pinSetupInput('8')">8</button>
+        <button class="pin-key" onclick="pinSetupInput('9')">9</button>
+        <button class="pin-key empty"></button>
+        <button class="pin-key" onclick="pinSetupInput('0')">0</button>
+        <button class="pin-key pin-del" onclick="pinSetupDel()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- ÉCRAN VÉRIFICATION PIN (connexion retour) -->
+    <div id="screenPinVerify" class="auth-screen">
+      <div class="auth-header">
+        <h1 class="auth-title">Bonjour,</h1>
+        <p class="auth-title-name" id="pinVerifyUsername">Utilisateur</p>
+        <p class="auth-subtitle">Saisissez votre code PIN</p>
+      </div>
+      <div class="pin-dots" id="pinVerifyDots">
+        <span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span>
+      </div>
+      <div id="pinVerifyError" class="auth-error" style="text-align:center;margin-bottom:8px;"></div>
+      <div class="pin-keypad">
+        <button class="pin-key" onclick="pinVerifyInput('1')">1</button>
+        <button class="pin-key" onclick="pinVerifyInput('2')">2</button>
+        <button class="pin-key" onclick="pinVerifyInput('3')">3</button>
+        <button class="pin-key" onclick="pinVerifyInput('4')">4</button>
+        <button class="pin-key" onclick="pinVerifyInput('5')">5</button>
+        <button class="pin-key" onclick="pinVerifyInput('6')">6</button>
+        <button class="pin-key" onclick="pinVerifyInput('7')">7</button>
+        <button class="pin-key" onclick="pinVerifyInput('8')">8</button>
+        <button class="pin-key" onclick="pinVerifyInput('9')">9</button>
+        <button class="pin-key empty"></button>
+        <button class="pin-key" onclick="pinVerifyInput('0')">0</button>
+        <button class="pin-key pin-del" onclick="pinVerifyDel()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>
+        </button>
+      </div>
+      <button class="auth-btn-link" onclick="doLogout()">Se connecter avec un autre compte</button>
+    </div>
+
+  </div>
+
+  <!-- ========== PARAMÈTRES OVERLAY ========== -->
+  <div id="settingsOverlay" class="settings-overlay">
+    <div class="settings-header">
+      <button class="settings-close-btn" onclick="closeSettings()">
+        <svg width="24" height="24" fill="none" stroke="white" stroke-width="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <h2>Paramètres</h2>
+    </div>
+
+    <!-- VUE UTILISATEUR NORMAL -->
+    <div id="settingsUser" class="settings-content">
+      <div class="settings-section">
+        <h3>Mon profil</h3>
+        <div class="settings-info-row"><span>Identifiant</span><span id="settingsUsername">—</span></div>
+        <div class="settings-info-row"><span>Rôle</span><span>Titulaire</span></div>
+      </div>
+      <div class="settings-section">
+        <h3>Contact BNP Paribas</h3>
+        <div class="settings-info-row"><span>Téléphone</span><span>+33 1 40 14 20 00</span></div>
+      </div>
+      <button class="settings-logout-btn" onclick="doLogout()">Se déconnecter</button>
+    </div>
+
+    <!-- VUE ADMINISTRATEUR -->
+    <div id="settingsAdmin" class="settings-content" style="display:none;">
+
+      <div class="admin-tabs">
+        <button class="admin-tab active" onclick="switchAdminTab('users')" id="tabUsers">Utilisateurs</button>
+        <button class="admin-tab" onclick="switchAdminTab('edit')" id="tabEdit">Modifier compte</button>
+      </div>
+
+      <!-- ONGLET LISTE UTILISATEURS -->
+      <div id="adminTabUsers" class="admin-tab-content active">
+        <div class="admin-section-title">Gestion des comptes</div>
+        <div id="adminUserList" class="admin-user-list">
+          <p style="color:#888;font-size:13px;padding:16px;">Chargement…</p>
+        </div>
+      </div>
+
+      <!-- ONGLET MODIFIER DONNÉES -->
+      <div id="adminTabEdit" class="admin-tab-content">
+        <div class="admin-section-title">Compte sélectionné : <span id="adminSelectedUsername" style="color:#1a7a4a;">—</span></div>
+
+        <div class="admin-edit-section">
+          <div class="admin-edit-title">🚨 Compte gelé</div>
+          <div class="admin-field"><label>Montant à payer (€)</label><input id="adm_alert_amount" type="text"></div>
+          <div class="admin-field"><label>Statut compte</label>
+            <select id="adm_account_frozen">
+              <option value="true">Gelé</option>
+              <option value="false">Actif</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="admin-edit-section">
+          <div class="admin-edit-title">💳 Compte de chèques</div>
+          <div class="admin-field"><label>N° de compte</label><input id="adm_account_number" type="text"></div>
+          <div class="admin-field"><label>Date</label><input id="adm_account_date" type="text"></div>
+          <div class="admin-field"><label>Solde (€)</label><input id="adm_account_balance" type="text"></div>
+          <div class="admin-field"><label>À venir (€)</label><input id="adm_account_pending" type="text"></div>
+        </div>
+
+        <div class="admin-edit-section">
+          <div class="admin-edit-title">👤 Titulaire</div>
+          <div class="admin-field"><label>Nom</label><input id="adm_holder_lastname" type="text"></div>
+          <div class="admin-field"><label>Prénom</label><input id="adm_holder_firstname" type="text"></div>
+          <div class="admin-field"><label>Date de naissance</label><input id="adm_holder_birthdate" type="text"></div>
+          <div class="admin-field"><label>Pays</label><input id="adm_holder_country" type="text"></div>
+          <div class="admin-field"><label>Ville</label><input id="adm_holder_city" type="text"></div>
+          <div class="admin-field"><label>Région</label><input id="adm_holder_region" type="text"></div>
+        </div>
+
+        <div class="admin-edit-section">
+          <div class="admin-edit-title">📋 Transaction 1</div>
+          <div class="admin-field"><label>Nom</label><input id="adm_transaction1_name" type="text"></div>
+          <div class="admin-field"><label>Date</label><input id="adm_transaction1_date" type="text"></div>
+          <div class="admin-field"><label>Statut</label><input id="adm_transaction1_status" type="text"></div>
+          <div class="admin-field"><label>Montant (€)</label><input id="adm_transaction1_amount" type="text"></div>
+        </div>
+
+        <div class="admin-edit-section">
+          <div class="admin-edit-title">📋 Transaction 2</div>
+          <div class="admin-field"><label>Nom</label><input id="adm_transaction2_name" type="text"></div>
+          <div class="admin-field"><label>Date</label><input id="adm_transaction2_date" type="text"></div>
+          <div class="admin-field"><label>Statut</label><input id="adm_transaction2_status" type="text"></div>
+          <div class="admin-field"><label>Montant (€)</label><input id="adm_transaction2_amount" type="text"></div>
+        </div>
+
+        <div class="admin-edit-section">
+          <div class="admin-edit-title">📋 Transaction 3</div>
+          <div class="admin-field"><label>Nom</label><input id="adm_transaction3_name" type="text"></div>
+          <div class="admin-field"><label>Date</label><input id="adm_transaction3_date" type="text"></div>
+          <div class="admin-field"><label>Statut</label><input id="adm_transaction3_status" type="text"></div>
+          <div class="admin-field"><label>Montant (€)</label><input id="adm_transaction3_amount" type="text"></div>
+        </div>
+
+        <div class="admin-edit-section">
+          <div class="admin-edit-title">📊 Synthèse & Gestionnaire</div>
+          <div class="admin-field"><label>Total comptes (€)</label><input id="adm_synthese_total" type="text"></div>
+          <div class="admin-field"><label>Nom du gestionnaire</label><input id="adm_manager_name" type="text"></div>
+        </div>
+
+        <div id="adminSaveStatus" class="admin-save-status"></div>
+        <button class="admin-save-btn" onclick="adminSaveData()">💾 Enregistrer les modifications</button>
+
+        <div class="admin-edit-section" style="margin-top:16px;">
+          <div class="admin-edit-title">🔑 Réinitialiser le mot de passe</div>
+          <div class="admin-field"><label>Nouveau mot de passe</label><input id="adm_new_password" type="password" placeholder="Nouveau mot de passe"></div>
+          <button class="admin-reset-btn" onclick="adminResetPassword()">Réinitialiser</button>
+        </div>
+
+        <div class="admin-edit-section" style="margin-top:8px;">
+          <button class="admin-delete-btn" onclick="adminDeleteUser()">🗑️ Supprimer ce compte</button>
+        </div>
+      </div>
+
+      <div style="padding:16px 16px 8px;">
+        <button class="settings-logout-btn" onclick="doLogout()">Se déconnecter</button>
+      </div>
+
+    </div>
+  </div>
+
   <!-- ========== HEADER BNP PARIBAS ========== -->
   <header class="header-bnp">
     <div class="header-bnp-left">
@@ -17,9 +270,7 @@
         </svg>
       </button>
     </div>
-
     <div class="header-bnp-logo">
-      <!-- Logo BNP Paribas exact -->
       <svg class="bnp-logo" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id="bnpGrad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -28,21 +279,14 @@
           </linearGradient>
         </defs>
         <rect width="200" height="200" rx="28" fill="url(#bnpGrad)"/>
-
-        <!-- Oiseau 1 (haut droite, grand) -->
         <path d="M 128 42 L 145 32 L 138 48 L 158 42 L 144 58 L 132 52 Z" fill="white"/>
-        <!-- Oiseau 2 (milieu gauche) -->
         <path d="M 52 78 L 70 68 L 62 85 L 82 78 L 68 95 L 56 88 Z" fill="white"/>
-        <!-- Oiseau 3 (bas gauche) -->
         <path d="M 42 122 L 58 112 L 52 130 L 72 122 L 58 140 L 46 132 Z" fill="white"/>
-        <!-- Oiseau 4 (bas droite, petit) -->
         <path d="M 92 132 L 105 124 L 100 136 L 115 132 L 105 144 L 96 140 Z" fill="white"/>
-
         <text x="100" y="168" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="bold" fill="white" text-anchor="middle" letter-spacing="1">BNP</text>
         <text x="100" y="186" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="bold" fill="white" text-anchor="middle" letter-spacing="0.5">PARIBAS</text>
       </svg>
     </div>
-
     <div class="header-bnp-right">
       <button class="header-btn" onclick="showNotifications()">
         <svg width="22" height="22" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
@@ -72,7 +316,6 @@
     <!-- PAGE ACCUEIL -->
     <div id="page-accueil" class="page active">
 
-      <!-- COMPTES & ASSURANCES -->
       <section>
         <div class="section-header">
           <span class="section-title">Comptes, assurances</span>
@@ -97,7 +340,6 @@
         </div>
       </section>
 
-      <!-- ACTIONS RAPIDES -->
       <section>
         <div class="section-header">
           <span class="section-title">Actions rapides</span>
@@ -105,60 +347,40 @@
         <div class="actions-grid">
           <button class="action-btn" onclick="showVirement()">
             <div class="action-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M7 17L17 7M17 7H7M17 7v10"/>
-              </svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
             </div>
             <span class="action-label">Réaliser un<br>virement</span>
           </button>
           <button class="action-btn" onclick="showWero()">
             <div class="action-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <path d="M8 12c0-2.2 1.8-4 4-4s4 1.8 4 4-1.8 4-4 4" stroke-linecap="round"/>
-                <line x1="8" y1="12" x2="16" y2="12"/>
-              </svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12c0-2.2 1.8-4 4-4s4 1.8 4 4-1.8 4-4 4" stroke-linecap="round"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
             </div>
             <span class="action-label">Envoyer<br>avec Wero</span>
           </button>
           <button class="action-btn" onclick="showRIB()">
             <div class="action-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
-                <line x1="10" y1="9" x2="8" y2="9"/>
-              </svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
             </div>
             <span class="action-label">Afficher un RIB</span>
           </button>
           <button class="action-btn" onclick="showPlafonds()">
             <div class="action-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="1" y="4" width="22" height="16" rx="2"/>
-                <line x1="1" y1="10" x2="23" y2="10"/>
-                <line x1="5" y1="15" x2="9" y2="15" stroke-width="1.5"/>
-              </svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/><line x1="5" y1="15" x2="9" y2="15" stroke-width="1.5"/></svg>
             </div>
             <span class="action-label">Gérer les<br>plafonds</span>
           </button>
         </div>
       </section>
 
-      <!-- TRANSACTIONS -->
       <section>
         <div class="section-header">
           <span class="section-title">Dernières opérations</span>
           <a href="#" class="section-link" onclick="showAllTransactions()">Tout voir ›</a>
         </div>
         <div class="transaction-list" id="transactionList">
-
           <div class="transaction-item" onclick="showTransactionDetail(1)">
             <div class="transaction-icon red">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             </div>
             <div class="transaction-info">
               <div class="transaction-name" id="t1Name">Virement — Mme Rejeanne</div>
@@ -167,12 +389,9 @@
             </div>
             <div class="transaction-amount blocked" id="t1Amount">−200 000 €</div>
           </div>
-
           <div class="transaction-item" onclick="showTransactionDetail(2)">
             <div class="transaction-icon blue">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-              </svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
             </div>
             <div class="transaction-info">
               <div class="transaction-name" id="t2Name">Facture EDF</div>
@@ -181,12 +400,9 @@
             </div>
             <div class="transaction-amount negative" id="t2Amount">Réglée</div>
           </div>
-
           <div class="transaction-item" onclick="showTransactionDetail(3)">
             <div class="transaction-icon blue">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 2C6 8 4 13 4 15a8 8 0 0 0 16 0c0-2-2-7-8-13z"/>
-              </svg>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6 8 4 13 4 15a8 8 0 0 0 16 0c0-2-2-7-8-13z"/></svg>
             </div>
             <div class="transaction-info">
               <div class="transaction-name" id="t3Name">Facture Eau</div>
@@ -195,11 +411,9 @@
             </div>
             <div class="transaction-amount negative" id="t3Amount">Réglée</div>
           </div>
-
         </div>
       </section>
 
-      <!-- SYNTHÈSE DES COMPTES -->
       <section>
         <div class="section-header">
           <span class="section-title">Synthèse des comptes</span>
@@ -212,16 +426,13 @@
         </div>
       </section>
 
-      <!-- GESTIONNAIRE -->
       <section>
         <div class="section-header">
           <span class="section-title">Mon gestionnaire</span>
         </div>
         <div class="manager-card" onclick="contactManager()">
           <div class="manager-avatar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-            </svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           </div>
           <div class="manager-info">
             <p>Votre conseiller</p>
@@ -230,7 +441,6 @@
         </div>
       </section>
 
-      <!-- MES EXTRAS -->
       <section>
         <div class="section-header">
           <span class="section-title">Mes Extras</span>
@@ -254,34 +464,24 @@
       </section>
     </div>
 
-    <!-- PAGE PAIMENTS -->
+    <!-- PAGE PAIEMENTS -->
     <div id="page-paiements" class="page">
-      <div class="page-header">
-        <h2>Paiements</h2>
-      </div>
+      <div class="page-header"><h2>Paiements</h2></div>
       <div class="page-content">
         <div class="payment-option" onclick="showVirement()">
-          <div class="payment-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
-          </div>
+          <div class="payment-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg></div>
           <span>Réaliser un virement</span>
         </div>
         <div class="payment-option" onclick="showWero()">
-          <div class="payment-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12c0-2.2 1.8-4 4-4s4 1.8 4 4-1.8 4-4 4" stroke-linecap="round"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-          </div>
+          <div class="payment-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12c0-2.2 1.8-4 4-4s4 1.8 4 4-1.8 4-4 4" stroke-linecap="round"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div>
           <span>Envoyer avec Wero</span>
         </div>
         <div class="payment-option" onclick="showRIB()">
-          <div class="payment-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
-          </div>
+          <div class="payment-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg></div>
           <span>Afficher un RIB</span>
         </div>
         <div class="payment-option" onclick="showPlafonds()">
-          <div class="payment-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/><line x1="5" y1="15" x2="9" y2="15" stroke-width="1.5"/></svg>
-          </div>
+          <div class="payment-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/><line x1="5" y1="15" x2="9" y2="15" stroke-width="1.5"/></svg></div>
           <span>Gérer les plafonds</span>
         </div>
       </div>
@@ -289,9 +489,7 @@
 
     <!-- PAGE DÉCOUVRIR -->
     <div id="page-decouvrir" class="page">
-      <div class="page-header">
-        <h2>Découvrir</h2>
-      </div>
+      <div class="page-header"><h2>Découvrir</h2></div>
       <div class="page-content">
         <div class="discover-card" onclick="showOpportunities()">
           <h3>Opportunités</h3>
@@ -307,32 +505,24 @@
 
     <!-- PAGE CONTACT -->
     <div id="page-contact" class="page">
-      <div class="page-header">
-        <h2>Contact</h2>
-      </div>
+      <div class="page-header"><h2>Contact</h2></div>
       <div class="page-content">
         <div class="contact-option" onclick="contactManager()">
-          <div class="contact-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          </div>
+          <div class="contact-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
           <div class="contact-info">
             <span class="contact-title">Mon conseiller</span>
             <span class="contact-value" id="contactManager">François Guinard</span>
           </div>
         </div>
         <div class="contact-option" onclick="showChat()">
-          <div class="contact-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          </div>
+          <div class="contact-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
           <div class="contact-info">
             <span class="contact-title">Messagerie</span>
             <span class="contact-value">Contacter la banque</span>
           </div>
         </div>
         <div class="contact-option" onclick="showPhone()">
-          <div class="contact-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-          </div>
+          <div class="contact-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div>
           <div class="contact-info">
             <span class="contact-title">Téléphone</span>
             <span class="contact-value">+33 1 40 14 20 00</span>
@@ -343,9 +533,7 @@
 
     <!-- PAGE VOUS (PROFIL) -->
     <div id="page-vous" class="page">
-      <div class="page-header">
-        <h2>Vous</h2>
-      </div>
+      <div class="page-header"><h2>Vous</h2></div>
       <div class="page-content">
         <div class="profile-card" onclick="openModal('accountModal')">
           <div class="profile-avatar">
@@ -357,7 +545,7 @@
           </div>
         </div>
         <div class="profile-menu">
-          <div class="menu-item" onclick="showSettings()">
+          <div class="menu-item" onclick="openSettings()">
             <span>Paramètres</span>
             <span class="menu-arrow">›</span>
           </div>
@@ -369,7 +557,7 @@
             <span>Aide & Support</span>
             <span class="menu-arrow">›</span>
           </div>
-          <div class="menu-item" onclick="logout()">
+          <div class="menu-item" onclick="doLogout()">
             <span style="color: #c0392b;">Déconnexion</span>
             <span class="menu-arrow">›</span>
           </div>
@@ -382,39 +570,23 @@
   <!-- ========== BOTTOM NAVIGATION ========== -->
   <nav class="bottom-nav">
     <button class="nav-item active" onclick="navigateTo('accueil')" data-page="accueil">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-        <polyline points="9 22 9 12 15 12 15 22"/>
-      </svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       <span>Accueil</span>
     </button>
     <button class="nav-item" onclick="navigateTo('paiements')" data-page="paiements">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="2" y="5" width="20" height="14" rx="2"/>
-        <path d="M6 9l-2 2 2 2"/>
-        <path d="M18 9l2 2-2 2"/>
-        <line x1="2" y1="10" x2="22" y2="10"/>
-      </svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9l-2 2 2 2"/><path d="M18 9l2 2-2 2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
       <span>Paiements</span>
     </button>
     <button class="nav-item" onclick="navigateTo('decouvrir')" data-page="decouvrir">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="10"/>
-        <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
-      </svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
       <span>Découvrir</span>
     </button>
     <button class="nav-item" onclick="navigateTo('contact')" data-page="contact">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-      </svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       <span>Contact</span>
     </button>
     <button class="nav-item" onclick="navigateTo('vous')" data-page="vous">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-        <circle cx="12" cy="7" r="4"/>
-      </svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       <span>Vous</span>
     </button>
   </nav>
@@ -444,18 +616,9 @@
     <div class="modal">
       <div class="modal-handle" onclick="closeModal('virementModal')"></div>
       <h3>Réaliser un virement</h3>
-      <div class="form-group">
-        <label>Bénéficiaire</label>
-        <input type="text" placeholder="Nom du bénéficiaire">
-      </div>
-      <div class="form-group">
-        <label>Montant (€)</label>
-        <input type="text" placeholder="0,00">
-      </div>
-      <div class="form-group">
-        <label>Motif</label>
-        <input type="text" placeholder="Motif du virement">
-      </div>
+      <div class="form-group"><label>Bénéficiaire</label><input type="text" placeholder="Nom du bénéficiaire"></div>
+      <div class="form-group"><label>Montant (€)</label><input type="text" placeholder="0,00"></div>
+      <div class="form-group"><label>Motif</label><input type="text" placeholder="Motif du virement"></div>
       <button class="btn-primary" onclick="closeModal('virementModal')">Valider</button>
       <button class="modal-close" onclick="closeModal('virementModal')">Annuler</button>
     </div>
@@ -467,7 +630,7 @@
       <div class="modal-handle" onclick="closeModal('ribModal')"></div>
       <h3>Relevé d'Identité Bancaire</h3>
       <div class="rib-box">
-        <p><strong>Titulaire :</strong> Jean Pierre Gauthier</p>
+        <p><strong>Titulaire :</strong> <span id="ribName">Jean Pierre Gauthier</span></p>
         <p><strong>IBAN :</strong> FR76 3000 4000 1500 0000 0000 4073</p>
         <p><strong>BIC :</strong> BNPAFRPPXXX</p>
         <p><strong>Banque :</strong> BNP Paribas</p>
@@ -496,11 +659,11 @@
       <h3>Notifications</h3>
       <div class="notif-item">
         <p class="notif-title">⚠️ Compte gelé</p>
-        <p class="notif-text">Votre compte est temporairement gelé. Montant à payer : 12 649 €</p>
+        <p class="notif-text" id="notifAlertText">Votre compte est temporairement gelé. Montant à payer : 12 649 €</p>
       </div>
       <div class="notif-item">
         <p class="notif-title">📋 Virement bloqué</p>
-        <p class="notif-text">Virement de 200 000 € vers Mme Rejeanne bloqué - Non conforme</p>
+        <p class="notif-text">Virement bloqué - Non conforme</p>
       </div>
       <button class="modal-close" onclick="closeModal('notifModal')">Fermer</button>
     </div>
