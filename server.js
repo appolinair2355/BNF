@@ -428,7 +428,7 @@ app.post('/api/auth/verify-pin', auth, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/auth/verify-token', auth, (req, res) => {
+app.get('/api/auth/verify-token', auth, (req, res) => {
   res.json({ valid: true, userId: req.user.userId, username: req.user.username, role: req.user.role });
 });
 
