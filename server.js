@@ -75,7 +75,10 @@ function generateUserId() {
 }
 
 function generateAccountNumber() {
-  return '**** ' + crypto.randomInt(0, 10000).toString().padStart(4, '0');
+  const ts = Date.now().toString().slice(-6);
+  const rnd = crypto.randomInt(0, 10000).toString().padStart(4, '0');
+  const n = ts + rnd; // 10 chiffres
+  return `FR76 3000 4000 ${n.slice(0,4)} ${n.slice(4,8)} ${n.slice(8,10)}00`;
 }
 
 function getEmptyData(accountNumber) {
@@ -326,8 +329,9 @@ function adminOnly(req, res, next) {
 
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { username, password, pin } = req.body;
+    const { username, password, pin, firstName, lastName, birthDate, gender } = req.body;
     if (!username || !password || !pin) return res.status(400).json({ error: 'Tous les champs sont requis' });
+    if (!firstName || !lastName || !birthDate || !gender) return res.status(400).json({ error: 'Nom, prénom, date de naissance et sexe sont requis' });
     if (username.trim().length < 3) return res.status(400).json({ error: 'Identifiant : 3 caractères minimum' });
     if (password.length < 4) return res.status(400).json({ error: 'Mot de passe : 4 caractères minimum' });
     if (!/^\d{5}$/.test(pin)) return res.status(400).json({ error: 'Le code PIN doit être composé de 5 chiffres' });
@@ -339,8 +343,31 @@ app.post('/api/auth/register', async (req, res) => {
     const pinHash = await bcrypt.hash(pin, 10);
     const user = await createUser(username.trim(), pwHash, pinHash);
 
+    // Enregistrer les infos du titulaire (le numéro de compte est généré automatiquement par createUser)
+    await saveAccountData(user.id, {
+      holder_firstname: String(firstName).trim(),
+      holder_lastname: String(lastName).trim(),
+      holder_birthdate: String(birthDate).trim(),
+      holder_gender: String(gender).trim(),
+      account_date: new Date().toLocaleDateString('fr-FR')
+    });
+
+    const accountData = await getAccountData(user.id);
     const token = jwt.sign({ userId: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ success: true, token, userId: user.id, username: user.username, role: user.role });
+    res.json({
+      success: true,
+      token,
+      userId: user.id,
+      username: user.username,
+      role: user.role,
+      account: {
+        firstName: accountData.holder_firstname,
+        lastName: accountData.holder_lastname,
+        accountNumber: accountData.account_number,
+        balance: accountData.account_balance || '0',
+        accountDate: accountData.account_date
+      }
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

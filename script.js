@@ -74,12 +74,19 @@ async function doLogin() {
 
 // ========== INSCRIPTION ==========
 function goToPinSetup() {
+  const lastName = document.getElementById('regLastName').value.trim();
+  const firstName = document.getElementById('regFirstName').value.trim();
+  const birthDate = document.getElementById('regBirthDate').value;
+  const gender = document.getElementById('regGender').value;
   const username = document.getElementById('regUsername').value.trim();
   const password = document.getElementById('regPassword').value;
   const confirm = document.getElementById('regPasswordConfirm').value;
   const errEl = document.getElementById('registerError');
   errEl.textContent = '';
 
+  if (!lastName || !firstName || !birthDate || !gender) {
+    errEl.textContent = 'Nom, prénom, date de naissance et sexe sont obligatoires.'; return;
+  }
   if (!username || !password || !confirm) {
     errEl.textContent = 'Veuillez remplir tous les champs.'; return;
   }
@@ -100,6 +107,33 @@ function goToPinSetup() {
   updatePinDots('pinSetupDots', 0);
   document.getElementById('pinSetupError').textContent = '';
   showAuthScreen('screenPinSetup');
+}
+
+function togglePassword(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const isPwd = input.type === 'password';
+  input.type = isPwd ? 'text' : 'password';
+  if (btn) btn.setAttribute('aria-label', isPwd ? 'Cacher le mot de passe' : 'Afficher le mot de passe');
+  if (btn) btn.classList.toggle('pw-toggle--on', isPwd);
+}
+
+function showWelcomeModal(account) {
+  const modal = document.getElementById('welcomeModal');
+  if (!modal || !account) return;
+  const fullName = [account.firstName, account.lastName].filter(Boolean).join(' ') || '—';
+  document.getElementById('welcomeName').textContent = account.firstName || '';
+  document.getElementById('welcomeHolder').textContent = fullName;
+  document.getElementById('welcomeAccount').textContent = account.accountNumber || '—';
+  const bal = Number(String(account.balance || '0').replace(',', '.')) || 0;
+  document.getElementById('welcomeBalance').textContent = bal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  document.getElementById('welcomeDate').textContent = account.accountDate || new Date().toLocaleDateString('fr-FR');
+  modal.style.display = 'flex';
+}
+
+function closeWelcomeModal() {
+  const modal = document.getElementById('welcomeModal');
+  if (modal) modal.style.display = 'none';
 }
 
 function pinSetupInput(digit) {
@@ -140,6 +174,10 @@ function pinSetupDel() {
 }
 
 async function doRegister(pin) {
+  const lastName = document.getElementById('regLastName').value.trim();
+  const firstName = document.getElementById('regFirstName').value.trim();
+  const birthDate = document.getElementById('regBirthDate').value;
+  const gender = document.getElementById('regGender').value;
   const username = document.getElementById('regUsername').value.trim();
   const password = document.getElementById('regPassword').value;
   const errEl = document.getElementById('pinSetupError');
@@ -148,7 +186,7 @@ async function doRegister(pin) {
     const r = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password, pin })
+      body: JSON.stringify({ username, password, pin, firstName, lastName, birthDate, gender })
     });
     const data = await r.json();
     if (!r.ok) {
@@ -167,6 +205,8 @@ async function doRegister(pin) {
     localStorage.setItem('mybank_token', currentToken);
     sessionStorage.setItem('mybank_pin_ok', '1');
     hideAuthOverlay();
+    // Affiche la fenêtre de bienvenue avec les infos du nouveau compte
+    showWelcomeModal(data.account || { firstName, lastName, accountNumber: '—', balance: '0' });
     onAuthenticated();
   } catch {
     errEl.textContent = 'Erreur réseau. Réessayez.';
@@ -629,6 +669,8 @@ window.pinVerifyInput = pinVerifyInput;
 window.pinVerifyDel = pinVerifyDel;
 window.showAuthScreen = showAuthScreen;
 window.doLogout = doLogout;
+window.togglePassword = togglePassword;
+window.closeWelcomeModal = closeWelcomeModal;
 window.openSettings = openSettings;
 window.closeSettings = closeSettings;
 window.switchAdminTab = switchAdminTab;

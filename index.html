@@ -50,7 +50,12 @@
         </div>
         <div class="auth-field">
           <label>Mot de passe</label>
-          <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Votre mot de passe" />
+          <div class="pw-wrap">
+            <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Votre mot de passe" />
+            <button type="button" class="pw-toggle" aria-label="Afficher le mot de passe" onclick="togglePassword('loginPassword', this)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
         </div>
         <div id="loginError" class="auth-error"></div>
         <button class="auth-btn-primary" onclick="doLogin()">Se connecter</button>
@@ -69,20 +74,67 @@
       </div>
       <div class="auth-form">
         <div class="auth-field">
+          <label>Nom</label>
+          <input id="regLastName" type="text" autocapitalize="words" placeholder="Votre nom" />
+        </div>
+        <div class="auth-field">
+          <label>Prénom</label>
+          <input id="regFirstName" type="text" autocapitalize="words" placeholder="Votre prénom" />
+        </div>
+        <div class="auth-field">
+          <label>Date de naissance</label>
+          <input id="regBirthDate" type="date" />
+        </div>
+        <div class="auth-field">
+          <label>Sexe</label>
+          <select id="regGender">
+            <option value="">Sélectionnez…</option>
+            <option value="Homme">Homme</option>
+            <option value="Femme">Femme</option>
+            <option value="Autre">Autre</option>
+          </select>
+        </div>
+        <div class="auth-field">
           <label>Identifiant</label>
           <input id="regUsername" type="text" autocapitalize="none" placeholder="Choisissez un identifiant" />
         </div>
         <div class="auth-field">
           <label>Mot de passe</label>
-          <input id="regPassword" type="password" placeholder="Choisissez un mot de passe" />
+          <div class="pw-wrap">
+            <input id="regPassword" type="password" placeholder="Choisissez un mot de passe" />
+            <button type="button" class="pw-toggle" aria-label="Afficher le mot de passe" onclick="togglePassword('regPassword', this)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
         </div>
         <div class="auth-field">
           <label>Confirmer le mot de passe</label>
-          <input id="regPasswordConfirm" type="password" placeholder="Répétez le mot de passe" />
+          <div class="pw-wrap">
+            <input id="regPasswordConfirm" type="password" placeholder="Répétez le mot de passe" />
+            <button type="button" class="pw-toggle" aria-label="Afficher le mot de passe" onclick="togglePassword('regPasswordConfirm', this)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
         </div>
         <div id="registerError" class="auth-error"></div>
         <button class="auth-btn-primary" onclick="goToPinSetup()">Continuer</button>
         <button class="auth-btn-secondary" onclick="showAuthScreen('screenLogin')">Retour à la connexion</button>
+      </div>
+    </div>
+
+    <!-- MODAL DE BIENVENUE APRÈS INSCRIPTION -->
+    <div id="welcomeModal" class="welcome-modal" style="display:none;">
+      <div class="welcome-card">
+        <div class="welcome-icon">
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        </div>
+        <h2 class="welcome-title">Bienvenue <span id="welcomeName">—</span></h2>
+        <p class="welcome-sub">Votre compte BNP Paribas a été créé avec succès.</p>
+        <div class="welcome-row"><span>Titulaire</span><strong id="welcomeHolder">—</strong></div>
+        <div class="welcome-row"><span>N° de compte</span><strong id="welcomeAccount">—</strong></div>
+        <div class="welcome-row"><span>Solde initial</span><strong id="welcomeBalance">0,00 €</strong></div>
+        <div class="welcome-row"><span>Date d'ouverture</span><strong id="welcomeDate">—</strong></div>
+        <button class="auth-btn-primary" onclick="closeWelcomeModal()">Accéder à mon espace</button>
       </div>
     </div>
 

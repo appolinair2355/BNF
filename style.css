@@ -1503,3 +1503,44 @@ body.settings-locked .bottom-nav {
   text-align: center;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
+
+/* ===== Password toggle (œil) ===== */
+.pw-wrap { position: relative; display: flex; align-items: center; }
+.pw-wrap input { flex: 1; padding-right: 44px; }
+.pw-toggle {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  background: transparent; border: 0; padding: 6px; cursor: pointer;
+  color: #1a7a4a; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 6px;
+}
+.pw-toggle:hover { background: rgba(26,122,74,.08); }
+.pw-toggle--on { color: #0e5d36; }
+
+/* ===== Welcome modal ===== */
+.welcome-modal {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,.55);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.welcome-card {
+  background: #fff; border-radius: 18px; width: 100%; max-width: 380px;
+  padding: 24px 22px; text-align: center;
+  box-shadow: 0 20px 50px rgba(0,0,0,.25);
+  animation: welcomePop .25s ease-out;
+}
+@keyframes welcomePop { from { transform: scale(.9); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+.welcome-icon {
+  width: 72px; height: 72px; margin: 0 auto 12px;
+  border-radius: 50%; background: #e6f4ec;
+  display: flex; align-items: center; justify-content: center;
+}
+.welcome-title { font-size: 22px; font-weight: 700; color: #0e5d36; margin: 0 0 6px; }
+.welcome-sub { color: #555; margin: 0 0 18px; font-size: 14px; }
+.welcome-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid #eee; font-size: 14px;
+}
+.welcome-row:last-of-type { border-bottom: 0; margin-bottom: 12px; }
+.welcome-row span { color: #777; }
+.welcome-row strong { color: #111; font-weight: 600; text-align: right; }
