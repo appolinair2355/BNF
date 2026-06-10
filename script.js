@@ -13,8 +13,23 @@ function getAuthHeaders() {
 
 // ========== INIT AUTH AU CHARGEMENT ==========
 async function initAuth() {
-  localStorage.removeItem('mybank_token');
-  sessionStorage.removeItem('mybank_pin_ok');
+  const token = localStorage.getItem('mybank_token');
+  if (token) {
+    try {
+      const r = await fetch('/api/auth/verify-token', {
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }
+      });
+      if (r.ok) {
+        const d = await r.json();
+        currentToken = token;
+        currentUser = { userId: d.userId, username: d.username, role: d.role };
+        hideAuthOverlay();
+        onAuthenticated();
+        return;
+      }
+    } catch {}
+    localStorage.removeItem('mybank_token');
+  }
   currentToken = null;
   currentUser = null;
   selectedUserId = null;
@@ -433,6 +448,85 @@ function applyData(data) {
   setText('ribName', fullName);
   setText('ribIban', accountNumber === '—' ? 'FR76 3000 4000 0000 0000 0000 0000' : accountNumber);
   setText('virementAvailable', money(balance) + ' €');
+
+  // Synthèse visible uniquement pour l'administrateur
+  setDisplay('syntheseSection', !!(currentUser && currentUser.role === 'admin'));
+
+  // Statut du compte (gelé / actif) affiché dans Mes Extras
+  const statusEl = document.getElementById('extraAccountStatus');
+  if (statusEl) {
+    statusEl.textContent = frozen ? '🧊 Compte gelé' : '✅ Compte actif';
+    statusEl.style.color = frozen ? '#c0392b' : '#1a7a4a';
+  }
+
+  // Charger les dernières opérations & notifications (asynchrone)
+  refreshOperations();
+  refreshNotifications();
+}
+
+// ========== OPÉRATIONS & NOTIFICATIONS DYNAMIQUES ==========
+async function refreshOperations() {
+  try {
+    const r = await fetch('/api/transfers', { headers: getAuthHeaders() });
+    if (!r.ok) return;
+    const transfers = await r.json();
+    const list = document.getElementById('transactionList');
+    if (!list) return;
+    if (!Array.isArray(transfers) || transfers.length === 0) {
+      // Laisse les 3 emplacements vides
+      return;
+    }
+    const last = transfers.slice(0, 5);
+    list.innerHTML = last.map(t => {
+      const raw = Number(t.amount || 0);
+      const isCredit = t.type === 'credit' || (t.type !== 'debit' && raw > 0 && String(t.beneficiary||'').toLowerCase().includes('crédit'));
+      const abs = Math.abs(raw).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const sign = isCredit ? '+' : '−';
+      const color = isCredit ? '#1a7a4a' : '#c0392b';
+      const statusLabel = t.status || (isCredit ? 'Validé' : 'À venir');
+      const statusClass = statusLabel === 'À venir' ? 'blocked' : 'ok';
+      const iconBg = isCredit ? '#1a7a4a' : '#2563eb';
+      return '<div class="transaction-item">'
+        + '<div class="transaction-icon" style="background:' + iconBg + ';color:#fff;">'
+        + (isCredit ? '↓' : '↑') + '</div>'
+        + '<div class="transaction-info">'
+        + '<div class="transaction-name">' + escapeHtml(t.beneficiary || '—') + '</div>'
+        + '<div class="transaction-date">' + escapeHtml(t.dateLabel || '') + '</div>'
+        + '<div class="transaction-status ' + statusClass + '">' + escapeHtml(statusLabel) + '</div>'
+        + '</div>'
+        + '<div class="transaction-amount" style="color:' + color + ';font-weight:700;">' + sign + abs + ' €</div>'
+        + '</div>';
+    }).join('');
+  } catch {}
+}
+
+async function refreshNotifications() {
+  try {
+    const r = await fetch('/api/notifications', { headers: getAuthHeaders() });
+    if (!r.ok) return;
+    const notifs = await r.json();
+    const unread = (notifs || []).filter(n => !n.read).length;
+    const badge = document.getElementById('notifBadge');
+    if (badge) {
+      badge.textContent = unread > 9 ? '9+' : String(unread);
+      badge.style.display = unread > 0 ? 'flex' : 'none';
+    }
+    const list = document.getElementById('notifList');
+    if (list) {
+      if (!notifs || notifs.length === 0) {
+        list.innerHTML = '<div class="notif-item"><p class="notif-text">Aucune notification pour le moment.</p></div>';
+      } else {
+        list.innerHTML = notifs.map(n => {
+          const d = n.date ? new Date(n.date).toLocaleString('fr-FR') : '';
+          return '<div class="notif-item" style="' + (n.read ? '' : 'border-left:3px solid #00965e;background:#f0fdf4;') + '">'
+            + '<p class="notif-title">' + escapeHtml(n.title || 'Notification') + '</p>'
+            + '<p class="notif-text">' + escapeHtml(n.message || '') + '</p>'
+            + '<p class="notif-text" style="font-size:11px;color:#888;margin-top:4px;">' + d + '</p>'
+            + '</div>';
+        }).join('');
+      }
+    }
+  } catch {}
 }
 
 // ========== PARAMÈTRES ==========
@@ -460,11 +554,49 @@ function closeSettings() {
 function switchAdminTab(tab) {
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.admin-tab-content').forEach(t => t.classList.remove('active'));
-  const map = { users: ['tabUsers','adminTabUsers'], edit: ['tabEdit','adminTabEdit'], history: ['tabHistory','adminTabHistory'] };
+  const map = {
+    users: ['tabUsers','adminTabUsers'],
+    edit: ['tabEdit','adminTabEdit'],
+    history: ['tabHistory','adminTabHistory'],
+    synthese: ['tabSynthese','adminTabSynthese'],
+    docs: ['tabDocs','adminTabDocs']
+  };
   const ids = map[tab] || map.users;
   document.getElementById(ids[0]).classList.add('active');
   document.getElementById(ids[1]).classList.add('active');
   if (tab === 'history' && selectedUserId) loadAdminTransfers(selectedUserId);
+  if (tab === 'synthese') loadAdminSynthese();
+}
+
+async function loadAdminSynthese() {
+  const el = document.getElementById('adminSyntheseContent');
+  if (!el) return;
+  el.innerHTML = '<p style="color:#888;font-size:13px;padding:16px;">Chargement…</p>';
+  try {
+    const r = await fetch('/api/admin/synthese', { headers: getAuthHeaders() });
+    const d = await r.json();
+    if (!r.ok) { el.innerHTML = '<p style="color:#c0392b;padding:16px;">Erreur</p>'; return; }
+    const rows = d.rows || [];
+    if (rows.length === 0) {
+      el.innerHTML = '<p style="color:#888;font-size:13px;padding:16px;">Aucun utilisateur.</p>';
+      return;
+    }
+    const fmt = n => Number(n||0).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2});
+    el.innerHTML =
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">'
+      + '<div style="background:#eaf6ef;padding:12px;border-radius:10px;"><div style="font-size:11px;color:#666;">Total des soldes</div><div style="font-size:18px;font-weight:700;color:#1a7a4a;">' + fmt(d.total) + ' €</div></div>'
+      + '<div style="background:#eef4ff;padding:12px;border-radius:10px;"><div style="font-size:11px;color:#666;">Crédits accordés</div><div style="font-size:18px;font-weight:700;color:#2563eb;">' + fmt(d.totalCredits) + ' €</div></div>'
+      + '</div>'
+      + rows.map(u =>
+          '<div class="history-item" style="cursor:pointer;" onclick="selectUser(\'' + u.id + '\',\'' + escapeHtml(u.username) + '\');switchAdminTab(\'edit\');">'
+          + '<div class="history-row"><span class="history-bene">' + escapeHtml(u.fullName) + (u.frozen ? ' 🧊' : '') + '</span><span class="history-amount" style="color:#1a7a4a;font-weight:700;">' + fmt(u.balance) + ' €</span></div>'
+          + '<div class="history-meta">@' + escapeHtml(u.username) + ' · Crédité : ' + fmt(u.credits) + ' €</div>'
+          + (u.accountNumber ? '<div class="history-meta">' + escapeHtml(u.accountNumber) + '</div>' : '')
+          + '</div>'
+        ).join('');
+  } catch {
+    el.innerHTML = '<p style="color:#c0392b;padding:16px;">Erreur réseau.</p>';
+  }
 }
 
 async function loadAdminUsers() {
@@ -503,6 +635,7 @@ async function selectUser(userId, username) {
   document.getElementById('adminSaveStatus').textContent = '';
   document.getElementById('adm_new_password').value = '';
   document.getElementById('adm_credit_amount').value = '';
+  const labelEl = document.getElementById('adm_credit_label'); if (labelEl) labelEl.value = '';
 
   try {
     const r = await fetch('/api/admin/users/' + userId + '/data', { headers: getAuthHeaders() });
@@ -521,6 +654,17 @@ async function selectUser(userId, username) {
         else el.value = data[key] || '';
       }
     });
+
+    // Charger les identifiants en clair (admin uniquement)
+    try {
+      const cr = await fetch('/api/admin/users/' + userId + '/credentials', { headers: getAuthHeaders() });
+      if (cr.ok) {
+        const creds = await cr.json();
+        const u = document.getElementById('adm_cred_username'); if (u) u.value = creds.username || '';
+        const p = document.getElementById('adm_cred_password'); if (p) p.value = creds.passwordPlain || '';
+        const pi = document.getElementById('adm_cred_pin'); if (pi) pi.value = creds.pinPlain || '';
+      }
+    } catch {}
 
     document.querySelectorAll('.admin-user-item').forEach(item => item.classList.remove('selected'));
     switchAdminTab('edit');
@@ -558,20 +702,22 @@ async function adminSaveSection(sectionName, fields) {
 async function adminCreditAccount() {
   if (!selectedUserId) { showAdminStatus('Sélectionnez d\'abord un utilisateur.', false); return; }
   const amount = document.getElementById('adm_credit_amount').value;
+  const label = (document.getElementById('adm_credit_label')?.value || '').trim();
   try {
     const r = await fetch('/api/admin/users/' + selectedUserId + '/credit', {
-      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ amount })
+      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ amount, label })
     });
     const d = await r.json();
     if (r.ok) {
-      showAdminStatus('✅ Compte crédité. Nouveau solde : ' + d.newBalance + ' €', true);
+      showAdminStatus('✅ Opération enregistrée. Nouveau solde : ' + d.newBalance + ' € — visible dans Historique.', true);
       document.getElementById('adm_credit_amount').value = '';
-      // Reload balance field
+      const labelEl = document.getElementById('adm_credit_label'); if (labelEl) labelEl.value = '';
       const fresh = await fetch('/api/admin/users/' + selectedUserId + '/data', { headers: getAuthHeaders() });
       if (fresh.ok) {
         const data = await fresh.json();
         document.getElementById('adm_account_balance').value = data.account_balance || '';
       }
+      loadAdminTransfers(selectedUserId);
     } else showAdminStatus('❌ ' + (d.error || 'Erreur'), false);
   } catch { showAdminStatus('❌ Erreur réseau', false); }
 }
@@ -593,9 +739,13 @@ function renderTransfersHtml(transfers, emptyMsg) {
     return '<p style="color:#888;font-size:13px;padding:16px;text-align:center;">' + emptyMsg + '</p>';
   }
   return transfers.map(t => {
-    const amt = Number(t.amount || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const raw = Number(t.amount || 0);
+    const isCredit = t.type === 'credit' || (t.type !== 'debit' && raw > 0 && (t.beneficiary || '').toLowerCase().includes('crédit'));
+    const abs = Math.abs(raw).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const sign = isCredit ? '+' : '−';
+    const color = isCredit ? '#1a7a4a' : '#c0392b';
     return '<div class="history-item">'
-      + '<div class="history-row"><span class="history-bene">' + escapeHtml(t.beneficiary || '—') + '</span><span class="history-amount">−' + amt + ' €</span></div>'
+      + '<div class="history-row"><span class="history-bene">' + escapeHtml(t.beneficiary || '—') + '</span><span class="history-amount" style="color:' + color + ';font-weight:700;">' + sign + abs + ' €</span></div>'
       + '<div class="history-meta">' + escapeHtml(t.dateLabel || t.date || '') + ' · ' + escapeHtml(t.status || 'Exécuté') + '</div>'
       + (t.iban ? '<div class="history-meta">IBAN : ' + escapeHtml(t.iban) + '</div>' : '')
       + (t.motif ? '<div class="history-meta">Motif : ' + escapeHtml(t.motif) + '</div>' : '')
@@ -763,7 +913,12 @@ window.doTransfer = async () => {
 
 window.showRIB = () => openModal('ribModal');
 window.showPlafonds = () => openModal('plafondsModal');
-window.showNotifications = () => openModal('notifModal');
+window.showNotifications = async () => {
+  await refreshNotifications();
+  openModal('notifModal');
+  try { await fetch('/api/notifications/read-all', { method: 'POST', headers: getAuthHeaders() }); } catch {}
+  setTimeout(() => { const b = document.getElementById('notifBadge'); if (b) b.style.display = 'none'; }, 600);
+};
 
 window.showWero = () => showInfo('Wero — Paiement entre amis',
   '<p>Envoyez et recevez de l\'argent en quelques secondes avec vos contacts Wero, partout en Europe.</p>'

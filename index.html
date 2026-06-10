@@ -211,6 +211,8 @@
         <button class="admin-tab active" onclick="switchAdminTab('users')" id="tabUsers">Utilisateurs</button>
         <button class="admin-tab" onclick="switchAdminTab('edit')" id="tabEdit">Modifier compte</button>
         <button class="admin-tab" onclick="switchAdminTab('history')" id="tabHistory">Historique</button>
+        <button class="admin-tab" onclick="switchAdminTab('synthese')" id="tabSynthese">📊 Synthèse</button>
+        <button class="admin-tab" onclick="switchAdminTab('docs')" id="tabDocs">📘 Documentation</button>
       </div>
 
       <!-- ONGLET LISTE UTILISATEURS -->
@@ -229,10 +231,21 @@
         <!-- CATÉGORIE : Créditer le compte -->
         <div class="admin-edit-section">
           <div class="admin-edit-title">💶 Créditer / Débiter le compte</div>
-          <p style="font-size:12px;color:#666;margin-bottom:8px;">Ajoutez (positif) ou retirez (négatif) un montant au solde. L'utilisateur pourra ensuite effectuer des virements.</p>
+          <p style="font-size:12px;color:#666;margin-bottom:8px;">Ajoutez (positif) ou retirez (négatif) un montant au solde. Chaque opération apparaîtra dans l'historique du client et de l'administrateur.</p>
           <div class="admin-field"><label>Montant (€)</label><input id="adm_credit_amount" type="text" placeholder="ex : 1000 ou -50"></div>
+          <div class="admin-field"><label>Libellé / motif</label><input id="adm_credit_label" type="text" placeholder="ex : Versement initial"></div>
           <button class="admin-save-btn admin-save-btn--cat" onclick="adminCreditAccount()">💾 Appliquer le crédit</button>
         </div>
+
+        <!-- CATÉGORIE : Identifiants du client (admin uniquement) -->
+        <div class="admin-edit-section">
+          <div class="admin-edit-title">🔐 Identifiants du client</div>
+          <p style="font-size:12px;color:#666;margin-bottom:8px;">Visible uniquement par l'administrateur.</p>
+          <div class="admin-field"><label>Identifiant</label><input id="adm_cred_username" type="text" readonly></div>
+          <div class="admin-field"><label>Mot de passe</label><input id="adm_cred_password" type="text" readonly></div>
+          <div class="admin-field"><label>Code PIN</label><input id="adm_cred_pin" type="text" readonly></div>
+        </div>
+
 
         <!-- CATÉGORIE : Statut compte -->
         <div class="admin-edit-section">
@@ -331,6 +344,66 @@
         </div>
       </div>
 
+      <!-- ONGLET SYNTHÈSE (admin uniquement) -->
+      <div id="adminTabSynthese" class="admin-tab-content">
+        <div class="admin-section-title">📊 Synthèse des comptes clients</div>
+        <div id="adminSyntheseContent" class="admin-transfers-list">
+          <p style="color:#888;font-size:13px;padding:16px;">Chargement…</p>
+        </div>
+      </div>
+
+      <!-- ONGLET DOCUMENTATION (admin uniquement) -->
+      <div id="adminTabDocs" class="admin-tab-content">
+        <div class="admin-section-title">📘 Documentation MyBank</div>
+        <div class="admin-edit-section" style="line-height:1.55;font-size:14px;color:#222;">
+          <h3 style="margin:0 0 8px;color:#1a7a4a;">1. Présentation</h3>
+          <p>MyBank est une application bancaire web complète (Node.js + PostgreSQL avec repli JSON). Aucune donnée n'est pré-remplie : tout est créé après inscription ou par l'administrateur.</p>
+
+          <h3 style="margin:14px 0 6px;color:#1a7a4a;">2. Côté utilisateur</h3>
+          <ul style="margin:0 0 8px 18px;padding:0;">
+            <li>Inscription : nom, prénom, date de naissance, sexe, identifiant, mot de passe, code PIN à 5 chiffres.</li>
+            <li>Après inscription : fenêtre de bienvenue avec n° de compte généré automatiquement.</li>
+            <li>Connexion : identifiant + mot de passe (session persistante jusqu'à déconnexion volontaire).</li>
+            <li>Virements : possibles uniquement si le solde est positif et le compte non gelé.</li>
+            <li>« Mes virements » : historique de tous les mouvements (virements sortants + crédits/débits administrateur).</li>
+            <li>Conseiller : nom, téléphone et email visibles uniquement si l'administrateur les a renseignés.</li>
+          </ul>
+
+          <h3 style="margin:14px 0 6px;color:#1a7a4a;">3. Côté administrateur</h3>
+          <p><strong>Identifiants :</strong> <code>4833091290</code> / <code>Lesly33</code></p>
+          <p>Catégories disponibles (chacune avec son bouton 💾 Enregistrer) :</p>
+          <ul style="margin:0 0 8px 18px;padding:0;">
+            <li>💶 <strong>Crédit / Débit</strong> — ajoute ou retire un montant, libellé apparaît dans l'historique.</li>
+            <li>🔐 <strong>Identifiants du client</strong> — mot de passe et PIN en clair (lecture seule).</li>
+            <li>🚨 <strong>Statut</strong> — gel du compte + montant à débloquer.</li>
+            <li>💳 <strong>Compte de chèques</strong> — IBAN, date d'ouverture, solde, à venir.</li>
+            <li>👤 <strong>Titulaire</strong> — identité complète.</li>
+            <li>📞 <strong>Conseiller</strong> — nom, téléphone, email (seul moyen d'afficher un n° côté client).</li>
+            <li>📋 <strong>Opérations affichées</strong> — 3 transactions visibles sur l'accueil.</li>
+            <li>📊 <strong>Synthèse patrimoine</strong>.</li>
+            <li>🔑 <strong>Réinitialiser le mot de passe</strong>.</li>
+            <li>🗑️ Suppression de compte.</li>
+          </ul>
+
+          <h3 style="margin:14px 0 6px;color:#1a7a4a;">4. Procédure : créditer puis virer</h3>
+          <ol style="margin:0 0 8px 18px;padding:0;">
+            <li>Onglet <em>Utilisateurs</em> → sélectionner le client.</li>
+            <li>Catégorie <em>Crédit / Débit</em> → saisir montant + libellé → 💾 Appliquer.</li>
+            <li>Onglet <em>Historique</em> : la ligne « Crédit administrateur » apparaît immédiatement.</li>
+            <li>Le client peut alors faire un virement depuis son espace.</li>
+          </ol>
+
+          <h3 style="margin:14px 0 6px;color:#1a7a4a;">5. Sécurité</h3>
+          <ul style="margin:0 0 8px 18px;padding:0;">
+            <li>Mots de passe hashés (bcrypt) — une copie en clair est conservée uniquement pour la consultation administrateur.</li>
+            <li>Sessions JWT (30 jours), expirent automatiquement.</li>
+            <li>Compte gelé = blocage de tous les virements sortants.</li>
+            <li>Cette documentation n'est visible qu'à l'administrateur.</li>
+          </ul>
+        </div>
+      </div>
+
+
       <div style="padding:16px 16px 8px;">
         <button class="settings-logout-btn" onclick="doLogout()">Se déconnecter</button>
       </div>
@@ -365,11 +438,12 @@
       </svg>
     </div>
     <div class="header-bnp-right">
-      <button class="header-btn" onclick="showNotifications()">
+      <button class="header-btn" onclick="showNotifications()" style="position:relative;">
         <svg width="22" height="22" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
           <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
         </svg>
+        <span id="notifBadge" style="display:none;position:absolute;top:2px;right:2px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#e60028;color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;line-height:1;border:2px solid #00965e;">0</span>
       </button>
     </div>
   </header>
@@ -491,7 +565,7 @@
         </div>
       </section>
 
-      <section>
+      <section id="syntheseSection" style="display:none;">
         <div class="section-header">
           <span class="section-title">Synthèse des comptes</span>
         </div>
@@ -535,6 +609,7 @@
               <line x1="39" y1="35" x2="41" y2="35" stroke="#7dd3c0" stroke-width="1.5" stroke-linecap="round"/>
             </svg>
           </div>
+          <div id="extraAccountStatus" style="font-weight:700;font-size:14px;margin:4px 0 8px;color:#1a7a4a;">✅ Compte actif</div>
           <p>Retrouvez ici votre cashback du mois en cours et les offres du moment.</p>
           <button class="btn-primary" onclick="activateCashback()">Activer le cashback</button>
         </div>
@@ -753,13 +828,10 @@
     <div class="modal">
       <div class="modal-handle" onclick="closeModal('notifModal')"></div>
       <h3>Notifications</h3>
-      <div class="notif-item">
-        <p class="notif-title">Notifications</p>
-        <p class="notif-text" id="notifAlertText">Aucune notification pour le moment.</p>
-      </div>
-      <div class="notif-item">
-        <p class="notif-title">Opérations</p>
-        <p class="notif-text">Aucune opération bloquée.</p>
+      <div id="notifList" style="max-height:60vh;overflow-y:auto;">
+        <div class="notif-item">
+          <p class="notif-text" id="notifAlertText">Aucune notification pour le moment.</p>
+        </div>
       </div>
       <button class="modal-close" onclick="closeModal('notifModal')">Fermer</button>
     </div>
