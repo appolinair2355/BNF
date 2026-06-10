@@ -3,19 +3,16 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'mybank-bnp-secret-key-2025';
-
-// ========== BASE DE DONNÉES RENDER (fallback si DATABASE_URL absent) ==========
-const RENDER_DB_URL = 'postgresql://sossou_user:jpq5vOtf1RwtvT7Znlu41dyFj7JSuBKd@dpg-d7nru8iqqhas7384b3og-a.oregon-postgres.render.com/sossou';
-const DATABASE_URL = process.env.DATABASE_URL || RENDER_DB_URL;
+const DATABASE_URL = process.env.DATABASE_URL || '';
 
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// ========== STOCKAGE : PostgreSQL si DATABASE_URL, sinon fichier (fallback JSON) ==========
 let useDB = !!DATABASE_URL;
 let pool = null;
 
@@ -29,9 +26,9 @@ if (useDB) {
       idleTimeoutMillis: 30000,
       max: 5
     });
-    // Empêche le crash du serveur si la connexion PG est coupée (Render free tier)
     pool.on('error', (err) => {
-      console.error('⚠️  Erreur pool PG (ignorée) :', err.message);
+      console.error('⚠️  Erreur pool PostgreSQL (bascule JSON si besoin) :', err.message);
+      useDB = false;
     });
   } catch (e) {
     console.error('⚠️  Module pg indisponible, bascule sur stockage JSON :', e.message);
@@ -54,65 +51,42 @@ function readUsers() {
   ensureDirs();
   try { return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8')); } catch { return []; }
 }
+
 function writeUsers(users) {
   ensureDirs();
   fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
 }
+
 function readAccountFile(userId) {
+  ensureDirs();
   const f = path.join(ACCOUNTS_DIR, `${userId}.json`);
-  if (!fs.existsSync(f)) return {};
-  try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return {}; }
+  if (!fs.existsSync(f)) return null;
+  try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; }
 }
+
 function writeAccountFile(userId, data) {
   ensureDirs();
   fs.writeFileSync(path.join(ACCOUNTS_DIR, `${userId}.json`), JSON.stringify(data, null, 2));
 }
 
-// Données de DÉMO réservées au compte admin uniquement (le scénario Gauthier)
-function getDefaultData() {
-  return {
-    alert_amount: '12649',
-    account_number: '**** 4073',
-    account_date: '09/06/2026',
-    account_balance: '2500000',
-    account_frozen: 'true',
-    account_pending: '0.00',
-    holder_lastname: 'Gauthier',
-    holder_firstname: 'Jean Pierre',
-    holder_birthdate: '05/07/1939',
-    holder_country: 'France',
-    holder_city: 'Lens',
-    holder_region: 'Pas-de-Calais',
-    manager_name: 'François Guinard',
-    transaction1_name: 'Virement — Mme Rejeanne',
-    transaction1_date: '10 Mai 2023',
-    transaction1_status: 'Bloqué · Non conforme',
-    transaction1_amount: '200000',
-    transaction2_name: 'Facture EDF',
-    transaction2_date: '2001 · 2010 · 2013',
-    transaction2_status: 'Payé',
-    transaction2_amount: '0',
-    transaction3_name: 'Facture Eau',
-    transaction3_date: '2012',
-    transaction3_status: 'Payé',
-    transaction3_amount: '0',
-    synthese_total: '162350.95'
-  };
+function generateUserId() {
+  if (typeof crypto.randomUUID === 'function') return 'u-' + crypto.randomUUID();
+  return 'u-' + Date.now() + '-' + crypto.randomBytes(6).toString('hex');
 }
 
-// Compte VIERGE pour tout nouvel utilisateur (nom dérivé de l'identifiant)
-function getEmptyData(username) {
-  const safe = (username || '').trim();
-  // Capitalise première lettre du username pour servir de nom par défaut
-  const displayName = safe ? safe.charAt(0).toUpperCase() + safe.slice(1).toLowerCase() : '';
+function generateAccountNumber() {
+  return '**** ' + crypto.randomInt(0, 10000).toString().padStart(4, '0');
+}
+
+function getEmptyData(accountNumber) {
   return {
     alert_amount: '0',
-    account_number: '**** 0000',
+    account_number: accountNumber || generateAccountNumber(),
     account_date: new Date().toLocaleDateString('fr-FR'),
     account_balance: '0',
     account_frozen: 'false',
-    account_pending: '0.00',
-    holder_lastname: displayName,
+    account_pending: '0',
+    holder_lastname: '',
     holder_firstname: '',
     holder_birthdate: '',
     holder_country: '',
@@ -135,18 +109,17 @@ function getEmptyData(username) {
   };
 }
 
-// ========== INIT DB ==========
 async function initFileStorage() {
-  let users = readUsers();
+  const users = readUsers();
   if (!users.find(u => u.username === 'buzzinfluence')) {
     const pwHash = await bcrypt.hash('arrow2025', 10);
     const pinHash = await bcrypt.hash('12345', 10);
-    const adminId = 'admin-' + Date.now();
+    const adminId = 'admin-' + crypto.randomBytes(8).toString('hex');
     users.push({ id: adminId, username: 'buzzinfluence', passwordHash: pwHash, pinHash, role: 'admin', createdAt: new Date().toISOString() });
     writeUsers(users);
-    writeAccountFile(adminId, getDefaultData());
+    writeAccountFile(adminId, getEmptyData());
   }
-  console.log('✅ Stockage fichier JSON initialisé');
+  console.log('✅ Stockage JSON initialisé');
 }
 
 async function initDB() {
@@ -178,7 +151,7 @@ async function initDB() {
         UNIQUE(user_id, key)
       )
     `);
-    const adminCheck = await client.query(`SELECT id FROM users WHERE username = 'buzzinfluence'`);
+    const adminCheck = await client.query(`SELECT id FROM users WHERE username = $1`, ['buzzinfluence']);
     if (adminCheck.rows.length === 0) {
       const pwHash = await bcrypt.hash('arrow2025', 10);
       const pinHash = await bcrypt.hash('12345', 10);
@@ -186,16 +159,15 @@ async function initDB() {
         `INSERT INTO users (username, password_hash, pin_hash, role) VALUES ($1,$2,$3,'admin') RETURNING id`,
         ['buzzinfluence', pwHash, pinHash]
       );
-      const adminId = res.rows[0].id;
-      const defaults = getDefaultData();
-      for (const [k, v] of Object.entries(defaults)) {
+      const seed = getEmptyData();
+      for (const [key, value] of Object.entries(seed)) {
         await client.query(
           `INSERT INTO account_data (user_id, key, value) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`,
-          [adminId, k, v]
+          [res.rows[0].id, key, value]
         );
       }
     }
-    console.log('✅ PostgreSQL initialisé (Render)');
+    console.log('✅ PostgreSQL initialisé');
   } catch (e) {
     console.error('⚠️  Connexion PostgreSQL impossible (' + e.message + ') — bascule sur stockage JSON');
     useDB = false;
@@ -207,7 +179,6 @@ async function initDB() {
   }
 }
 
-// ========== USER CRUD ==========
 async function findUser(username) {
   if (!useDB) {
     return readUsers().find(u => u.username === username) || null;
@@ -229,28 +200,28 @@ async function findUserById(id) {
 }
 
 async function createUser(username, passwordHash, pinHash) {
-  // ⬇️ FIX : nouveau compte = vierge, nom dérivé de l'identifiant (plus de "Jean Pierre Gauthier")
-  const seed = getEmptyData(username);
+  const seed = getEmptyData();
 
   if (!useDB) {
     const users = readUsers();
-    const id = 'u-' + Date.now();
+    const id = generateUserId();
     const user = { id, username, passwordHash, pinHash, role: 'user', createdAt: new Date().toISOString() };
     users.push(user);
     writeUsers(users);
     writeAccountFile(id, seed);
     return user;
   }
+
   const r = await pool.query(
     `INSERT INTO users (username, password_hash, pin_hash, role) VALUES ($1,$2,$3,'user') RETURNING *`,
     [username, passwordHash, pinHash]
   );
   const row = r.rows[0];
   const user = { id: String(row.id), username: row.username, passwordHash: row.password_hash, pinHash: row.pin_hash, role: row.role, createdAt: row.created_at };
-  for (const [k, v] of Object.entries(seed)) {
+  for (const [key, value] of Object.entries(seed)) {
     await pool.query(
       `INSERT INTO account_data (user_id, key, value) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`,
-      [row.id, k, v]
+      [row.id, key, value]
     );
   }
   return user;
@@ -267,34 +238,53 @@ async function getAllUsers() {
 async function getAccountData(userId) {
   if (!useDB) {
     const data = readAccountFile(userId);
-    return Object.keys(data).length ? data : getEmptyData('');
+    if (data && Object.keys(data).length) return data;
+    const seed = getEmptyData();
+    writeAccountFile(userId, seed);
+    return seed;
   }
+
   const r = await pool.query(`SELECT key, value FROM account_data WHERE user_id = $1`, [userId]);
-  if (!r.rows.length) return getEmptyData('');
+  if (!r.rows.length) {
+    const seed = getEmptyData();
+    for (const [key, value] of Object.entries(seed)) {
+      await pool.query(
+        `INSERT INTO account_data (user_id, key, value) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`,
+        [userId, key, value]
+      );
+    }
+    return seed;
+  }
   const data = {};
   r.rows.forEach(row => { data[row.key] = row.value; });
-  return data;
+  return { ...getEmptyData(data.account_number), ...data };
 }
 
 async function saveAccountData(userId, updates) {
   if (!useDB) {
-    const current = readAccountFile(userId);
-    writeAccountFile(userId, { ...current, ...updates });
+    const current = readAccountFile(userId) || getEmptyData();
+    const accountNumber = current.account_number || updates.account_number || generateAccountNumber();
+    writeAccountFile(userId, { ...current, account_number: accountNumber, ...updates });
     return;
   }
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    for (const [k, v] of Object.entries(updates)) {
+    for (const [key, value] of Object.entries(updates)) {
       await client.query(
         `INSERT INTO account_data (user_id, key, value) VALUES ($1,$2,$3)
          ON CONFLICT (user_id, key) DO UPDATE SET value=$3, updated_at=NOW()`,
-        [userId, k, v]
+        [userId, key, value]
       );
     }
     await client.query('COMMIT');
-  } catch (e) { await client.query('ROLLBACK'); throw e; }
-  finally { client.release(); }
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 async function updateUserPassword(userId, newHash) {
@@ -309,7 +299,7 @@ async function updateUserPassword(userId, newHash) {
 
 async function deleteUserById(userId) {
   if (!useDB) {
-    let users = readUsers().filter(u => u.id !== userId);
+    const users = readUsers().filter(u => u.id !== userId);
     writeUsers(users);
     const f = path.join(ACCOUNTS_DIR, `${userId}.json`);
     if (fs.existsSync(f)) fs.unlinkSync(f);
@@ -318,14 +308,15 @@ async function deleteUserById(userId) {
   await pool.query(`DELETE FROM users WHERE id=$1`, [userId]);
 }
 
-// ========== MIDDLEWARE ==========
 function auth(req, res, next) {
   const h = req.headers.authorization;
   if (!h || !h.startsWith('Bearer ')) return res.status(401).json({ error: 'Non autorisé' });
   try {
     req.user = jwt.verify(h.replace('Bearer ', ''), JWT_SECRET);
     next();
-  } catch { res.status(401).json({ error: 'Session expirée, reconnectez-vous' }); }
+  } catch {
+    res.status(401).json({ error: 'Session expirée, reconnectez-vous' });
+  }
 }
 
 function adminOnly(req, res, next) {
@@ -333,7 +324,6 @@ function adminOnly(req, res, next) {
   next();
 }
 
-// ========== ROUTES AUTH ==========
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { username, password, pin } = req.body;
@@ -351,7 +341,9 @@ app.post('/api/auth/register', async (req, res) => {
 
     const token = jwt.sign({ userId: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ success: true, token, userId: user.id, username: user.username, role: user.role });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.post('/api/auth/login', async (req, res) => {
@@ -367,7 +359,9 @@ app.post('/api/auth/login', async (req, res) => {
 
     const token = jwt.sign({ userId: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ success: true, token, userId: user.id, username: user.username, role: user.role });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.post('/api/auth/verify-pin', auth, async (req, res) => {
@@ -379,29 +373,32 @@ app.post('/api/auth/verify-pin', auth, async (req, res) => {
     const ok = await bcrypt.compare(String(pin), user.pinHash);
     if (!ok) return res.status(401).json({ error: 'Code PIN incorrect' });
     res.json({ success: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.post('/api/auth/verify-token', auth, (req, res) => {
   res.json({ valid: true, userId: req.user.userId, username: req.user.username, role: req.user.role });
 });
 
-// ========== ROUTES DONNÉES CLIENT ==========
 app.get('/api/client-data', auth, async (req, res) => {
   try {
-    const data = await getAccountData(req.user.userId);
-    res.json(data);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    res.json(await getAccountData(req.user.userId));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.post('/api/client-data', auth, async (req, res) => {
   try {
     await saveAccountData(req.user.userId, req.body);
     res.json({ success: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
-// ========== ROUTES ADMIN ==========
 app.get('/api/admin/users', auth, adminOnly, async (req, res) => {
   try { res.json(await getAllUsers()); }
   catch (e) { res.status(500).json({ error: e.message }); }

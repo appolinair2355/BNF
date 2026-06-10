@@ -167,7 +167,7 @@
       </div>
       <div class="settings-section">
         <h3>Contact BNP Paribas</h3>
-        <div class="settings-info-row"><span>Téléphone</span><span>+33 1 40 14 20 00</span></div>
+        <div class="settings-info-row"><span>Téléphone</span><span>+33 1 40 40 20 00</span></div>
       </div>
       <button class="settings-logout-btn" onclick="doLogout()">Se déconnecter</button>
     </div>
@@ -309,7 +309,7 @@
   </header>
 
   <!-- ========== ALERTE BLOQUAGE ========== -->
-  <div class="alert-banner" id="alertBanner">
+  <div class="alert-banner" id="alertBanner" style="display:none;">
     <div class="alert-icon">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
@@ -317,7 +317,7 @@
     </div>
     <div class="alert-content">
       <p class="alert-title">Compte gelé</p>
-      <p class="alert-text">Montant à payer pour débloquer : <strong id="alertAmount">12 649 €</strong></p>
+      <p class="alert-text">Montant à payer pour débloquer : <strong id="alertAmount">0 €</strong></p>
     </div>
   </div>
 
@@ -335,10 +335,10 @@
         <div class="cards-row">
           <div class="card" id="openAccountDetail" onclick="openModal('accountModal')" style="cursor:pointer;">
             <div class="card-label">Compte de chèques</div>
-            <div class="card-number" id="accountNumber">N° **** 4073</div>
-            <div class="card-date" id="accountDate">09/06/2026</div>
-            <div class="card-balance hidden" id="mainBalance">2 500 000 €</div>
-            <div class="badge-frozen" id="frozenBadge">
+            <div class="card-number" id="accountNumber">N° —</div>
+            <div class="card-date" id="accountDate">—</div>
+            <div class="card-balance hidden" id="mainBalance">0 €</div>
+            <div class="badge-frozen" id="frozenBadge" style="display:none;">
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V2M12 2l-4 4M12 2l4 4M2 12h20M2 12l4-4M2 12l4 4M22 12l-4-4M22 12l-4 4M6.34 17.66l11.32-11.32M6.34 17.66l1.42-5.66M6.34 17.66l5.66-1.42M17.66 17.66L6.34 6.34M17.66 17.66l-5.66-1.42M17.66 17.66l-1.42-5.66"/></svg>
               Gelé
             </div>
@@ -394,33 +394,33 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             </div>
             <div class="transaction-info">
-              <div class="transaction-name" id="t1Name">Virement — Mme Rejeanne</div>
-              <div class="transaction-date" id="t1Date">10 Mai 2023</div>
-              <div class="transaction-status blocked" id="t1Status">Bloqué · Non conforme</div>
+              <div class="transaction-name" id="t1Name"></div>
+              <div class="transaction-date" id="t1Date"></div>
+              <div class="transaction-status blocked" id="t1Status"></div>
             </div>
-            <div class="transaction-amount blocked" id="t1Amount">−200 000 €</div>
+            <div class="transaction-amount blocked" id="t1Amount"></div>
           </div>
           <div class="transaction-item" onclick="showTransactionDetail(2)">
             <div class="transaction-icon blue">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
             </div>
             <div class="transaction-info">
-              <div class="transaction-name" id="t2Name">Facture EDF</div>
-              <div class="transaction-date" id="t2Date">2001 · 2010 · 2013</div>
-              <div class="transaction-status ok" id="t2Status">Payé</div>
+              <div class="transaction-name" id="t2Name"></div>
+              <div class="transaction-date" id="t2Date"></div>
+              <div class="transaction-status ok" id="t2Status"></div>
             </div>
-            <div class="transaction-amount negative" id="t2Amount">Réglée</div>
+            <div class="transaction-amount negative" id="t2Amount"></div>
           </div>
           <div class="transaction-item" onclick="showTransactionDetail(3)">
             <div class="transaction-icon blue">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6 8 4 13 4 15a8 8 0 0 0 16 0c0-2-2-7-8-13z"/></svg>
             </div>
             <div class="transaction-info">
-              <div class="transaction-name" id="t3Name">Facture Eau</div>
-              <div class="transaction-date" id="t3Date">2012</div>
-              <div class="transaction-status ok" id="t3Status">Payé</div>
+              <div class="transaction-name" id="t3Name"></div>
+              <div class="transaction-date" id="t3Date"></div>
+              <div class="transaction-status ok" id="t3Status"></div>
             </div>
-            <div class="transaction-amount negative" id="t3Amount">Réglée</div>
+            <div class="transaction-amount negative" id="t3Amount"></div>
           </div>
         </div>
       </section>
@@ -432,7 +432,7 @@
         <div class="synthese-card" onclick="showSynthese()">
           <div class="synthese-row">
             <span class="synthese-label">Total de vos comptes</span>
-            <span class="synthese-value" id="syntheseTotal">162 350,95 €</span>
+            <span class="synthese-value" id="syntheseTotal">0 €</span>
           </div>
         </div>
       </section>
@@ -447,7 +447,7 @@
           </div>
           <div class="manager-info">
             <p>Votre conseiller</p>
-            <p id="managerName">François Guinard</p>
+            <p id="managerName">—</p>
           </div>
         </div>
       </section>
@@ -522,7 +522,7 @@
           <div class="contact-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
           <div class="contact-info">
             <span class="contact-title">Mon conseiller</span>
-            <span class="contact-value" id="contactManager">François Guinard</span>
+            <span class="contact-value" id="contactManager">—</span>
           </div>
         </div>
         <div class="contact-option" onclick="showChat()">
@@ -536,7 +536,7 @@
           <div class="contact-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div>
           <div class="contact-info">
             <span class="contact-title">Téléphone</span>
-            <span class="contact-value">+33 1 40 14 20 00</span>
+            <span class="contact-value">+33 1 40 40 20 00</span>
           </div>
         </div>
       </div>
@@ -551,7 +551,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           </div>
           <div class="profile-info">
-            <span class="profile-name" id="profileName">Jean Pierre Gauthier</span>
+            <span class="profile-name" id="profileName">—</span>
             <span class="profile-detail">Voir mon profil ›</span>
           </div>
         </div>
@@ -607,17 +607,17 @@
     <div class="modal">
       <div class="modal-handle" onclick="closeModal('accountModal')"></div>
       <h3>Détail du compte</h3>
-      <div class="info-row"><span class="label">Nom</span><span class="value" id="modalLastname">Gauthier</span></div>
-      <div class="info-row"><span class="label">Prénom</span><span class="value" id="modalFirstname">Jean Pierre</span></div>
-      <div class="info-row"><span class="label">Né(e) le</span><span class="value" id="modalBirthdate">05/07/1939</span></div>
-      <div class="info-row"><span class="label">Pays</span><span class="value" id="modalCountry">France</span></div>
-      <div class="info-row"><span class="label">Ville</span><span class="value" id="modalCity">Lens</span></div>
-      <div class="info-row"><span class="label">Région</span><span class="value" id="modalRegion">Pas-de-Calais</span></div>
-      <div class="info-row"><span class="label">N° de compte</span><span class="value" id="modalAccountNumber">**** **** 4073</span></div>
-      <div class="info-row"><span class="label">Solde total</span><span class="value red" id="modalBalance">2 500 000 € (gelé)</span></div>
-      <div class="info-row"><span class="label">À venir</span><span class="value" id="modalPending">0,00 €</span></div>
-      <div class="info-row"><span class="label">Déblocage</span><span class="value red" id="modalAlert">12 649 € à payer</span></div>
-      <div class="info-row"><span class="label">Gestionnaire</span><span class="value" id="modalManager">François Guinard</span></div>
+      <div class="info-row"><span class="label">Nom</span><span class="value" id="modalLastname">—</span></div>
+      <div class="info-row"><span class="label">Prénom</span><span class="value" id="modalFirstname">—</span></div>
+      <div class="info-row"><span class="label">Né(e) le</span><span class="value" id="modalBirthdate">—</span></div>
+      <div class="info-row"><span class="label">Pays</span><span class="value" id="modalCountry">—</span></div>
+      <div class="info-row"><span class="label">Ville</span><span class="value" id="modalCity">—</span></div>
+      <div class="info-row"><span class="label">Région</span><span class="value" id="modalRegion">—</span></div>
+      <div class="info-row"><span class="label">N° de compte</span><span class="value" id="modalAccountNumber">—</span></div>
+      <div class="info-row"><span class="label">Solde total</span><span class="value red" id="modalBalance">0 €</span></div>
+      <div class="info-row"><span class="label">À venir</span><span class="value" id="modalPending">0 €</span></div>
+      <div class="info-row"><span class="label">Déblocage</span><span class="value red" id="modalAlert">0 €</span></div>
+      <div class="info-row"><span class="label">Gestionnaire</span><span class="value" id="modalManager">—</span></div>
       <button class="modal-close" onclick="closeModal('accountModal')">Fermer</button>
     </div>
   </div>
@@ -641,8 +641,8 @@
       <div class="modal-handle" onclick="closeModal('ribModal')"></div>
       <h3>Relevé d'Identité Bancaire</h3>
       <div class="rib-box">
-        <p><strong>Titulaire :</strong> <span id="ribName">Jean Pierre Gauthier</span></p>
-        <p><strong>IBAN :</strong> FR76 3000 4000 1500 0000 0000 4073</p>
+        <p><strong>Titulaire :</strong> <span id="ribName">—</span></p>
+        <p><strong>IBAN :</strong> <span id="ribIban">FR76 3000 4000 1500 0000 0000 0000</span></p>
         <p><strong>BIC :</strong> BNPAFRPPXXX</p>
         <p><strong>Banque :</strong> BNP Paribas</p>
       </div>
@@ -669,12 +669,12 @@
       <div class="modal-handle" onclick="closeModal('notifModal')"></div>
       <h3>Notifications</h3>
       <div class="notif-item">
-        <p class="notif-title">⚠️ Compte gelé</p>
-        <p class="notif-text" id="notifAlertText">Votre compte est temporairement gelé. Montant à payer : 12 649 €</p>
+        <p class="notif-title">Notifications</p>
+        <p class="notif-text" id="notifAlertText">Aucune notification pour le moment.</p>
       </div>
       <div class="notif-item">
-        <p class="notif-title">📋 Virement bloqué</p>
-        <p class="notif-text">Virement bloqué - Non conforme</p>
+        <p class="notif-title">Opérations</p>
+        <p class="notif-text">Aucune opération bloquée.</p>
       </div>
       <button class="modal-close" onclick="closeModal('notifModal')">Fermer</button>
     </div>

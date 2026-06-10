@@ -16,6 +16,17 @@ body {
   overflow-x: hidden;
 }
 
+body.auth-locked .header-bnp,
+body.auth-locked .alert-banner,
+body.auth-locked .main,
+body.auth-locked .bottom-nav,
+body.settings-locked .header-bnp,
+body.settings-locked .alert-banner,
+body.settings-locked .main,
+body.settings-locked .bottom-nav {
+  display: none !important;
+}
+
 /* ========== HEADER BNP PARIBAS ========== */
 .header-bnp {
   background: #1a7a4a;
@@ -981,21 +992,25 @@ body {
 .auth-overlay {
   position: fixed;
   inset: 0;
+  width: 100vw;
+  max-width: none;
+  margin: 0;
+  left: 0;
+  right: 0;
+  transform: none;
   background: white;
   z-index: 1000;
   display: flex;
   align-items: stretch;
   justify-content: center;
-  max-width: 430px;
-  margin: 0 auto;
-  left: 50%;
-  transform: translateX(-50%);
 }
 
 .auth-screen {
   display: none;
   flex-direction: column;
   width: 100%;
+  max-width: 430px;
+  margin: 0 auto;
   padding: 60px 28px 40px;
   overflow-y: auto;
   background: white;
@@ -1206,14 +1221,16 @@ body {
 .settings-overlay {
   position: fixed;
   inset: 0;
+  width: 100vw;
+  max-width: none;
+  margin: 0;
+  left: 0;
+  right: 0;
+  transform: none;
   background: #f2f4f7;
-  z-index: 500;
+  z-index: 2000;
   display: none;
   flex-direction: column;
-  max-width: 430px;
-  margin: 0 auto;
-  left: 50%;
-  transform: translateX(-50%);
   overflow-y: auto;
 }
 
@@ -1227,6 +1244,9 @@ body {
   position: sticky;
   top: 0;
   z-index: 10;
+  width: 100%;
+  max-width: 430px;
+  margin: 0 auto;
 }
 
 .settings-close-btn {
@@ -1245,6 +1265,9 @@ body {
 }
 
 .settings-content {
+  width: 100%;
+  max-width: 430px;
+  margin: 0 auto;
   padding: 20px 16px 40px;
 }
 
@@ -1468,4 +1491,15 @@ body {
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
+}
+
+
+.transaction-empty {
+  background: white;
+  border-radius: 14px;
+  padding: 18px;
+  color: #888;
+  font-size: 14px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }

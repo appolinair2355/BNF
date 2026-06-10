@@ -1,5 +1,5 @@
 // ========== ÉTAT AUTH ==========
-let currentToken = localStorage.getItem('mybank_token') || null;
+let currentToken = null;
 let currentUser = null;
 let pinSetupValue = '';
 let pinSetupStep = 'set'; // 'set' | 'confirm'
@@ -13,41 +13,25 @@ function getAuthHeaders() {
 
 // ========== INIT AUTH AU CHARGEMENT ==========
 async function initAuth() {
-  if (!currentToken) {
-    showAuthOverlay();
-    showAuthScreen('screenLogin');
-    return;
-  }
-  try {
-    const r = await fetch('/api/auth/verify-token', {
-      method: 'POST',
-      headers: getAuthHeaders()
-    });
-    if (!r.ok) throw new Error('invalid');
-    const data = await r.json();
-    currentUser = { userId: data.userId, username: data.username, role: data.role };
-
-    const pinOk = sessionStorage.getItem('mybank_pin_ok');
-    if (!pinOk) {
-      showAuthOverlay();
-      document.getElementById('pinVerifyUsername').textContent = data.username;
-      showAuthScreen('screenPinVerify');
-    } else {
-      hideAuthOverlay();
-      onAuthenticated();
-    }
-  } catch {
-    localStorage.removeItem('mybank_token');
-    currentToken = null;
-    showAuthOverlay();
-    showAuthScreen('screenLogin');
-  }
+  localStorage.removeItem('mybank_token');
+  sessionStorage.removeItem('mybank_pin_ok');
+  currentToken = null;
+  currentUser = null;
+  selectedUserId = null;
+  resetAppToEmptyState();
+  showAuthOverlay();
+  showAuthScreen('screenLogin');
 }
 
 function showAuthOverlay() {
+  document.body.classList.add('auth-locked');
+  document.body.classList.remove('settings-locked');
+  const settingsOverlay = document.getElementById('settingsOverlay');
+  if (settingsOverlay) settingsOverlay.style.display = 'none';
   document.getElementById('authOverlay').style.display = 'flex';
 }
 function hideAuthOverlay() {
+  document.body.classList.remove('auth-locked');
   document.getElementById('authOverlay').style.display = 'none';
 }
 
@@ -241,6 +225,9 @@ function doLogout() {
   sessionStorage.removeItem('mybank_pin_ok');
   currentToken = null;
   currentUser = null;
+  selectedUserId = null;
+  resetAppToEmptyState();
+  closeSettings();
   document.getElementById('loginUsername').value = '';
   document.getElementById('loginPassword').value = '';
   document.getElementById('loginError').textContent = '';
@@ -266,11 +253,12 @@ function shakeDots(containerId) {
 let dataRefreshTimer = null;
 
 function onAuthenticated() {
+  resetAppToEmptyState();
   if (currentUser) {
     document.getElementById('settingsUsername').textContent = currentUser.username;
   }
+  navigateTo('accueil');
   loadData();
-  // Évite l'empilement d'intervalles (fix "tout vient deux fois")
   if (dataRefreshTimer) clearInterval(dataRefreshTimer);
   dataRefreshTimer = setInterval(loadData, 30000);
 }
@@ -287,64 +275,108 @@ async function loadData() {
   }
 }
 
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+
+function setDisplay(id, visible) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = visible ? '' : 'none';
+}
+
+function money(value) {
+  const n = Number.parseFloat(value || '0');
+  return (Number.isFinite(n) ? n : 0).toLocaleString('fr-FR');
+}
+
+function cleanValue(value, fallback = '—') {
+  const text = value == null ? '' : String(value).trim();
+  return text || fallback;
+}
+
+function resetAppToEmptyState() {
+  applyData({});
+}
+
 function applyData(data) {
-  if (data.alert_amount) {
-    const amt = parseFloat(data.alert_amount).toLocaleString('fr-FR');
-    document.getElementById('alertAmount').textContent = amt + ' €';
-    const notifEl = document.getElementById('notifAlertText');
-    if (notifEl) notifEl.textContent = 'Votre compte est temporairement gelé. Montant à payer : ' + amt + ' €';
-  }
-  if (data.account_number) document.getElementById('accountNumber').textContent = 'N° ' + data.account_number;
-  if (data.account_date) document.getElementById('accountDate').textContent = data.account_date;
-  if (data.account_balance) document.getElementById('mainBalance').textContent = parseFloat(data.account_balance).toLocaleString('fr-FR') + ' €';
-  if (data.account_pending) document.getElementById('accountPending').textContent = parseFloat(data.account_pending).toLocaleString('fr-FR');
-  document.getElementById('frozenBadge').style.display = (data.account_frozen === 'false') ? 'none' : '';
-  document.getElementById('alertBanner').style.display = (data.account_frozen === 'false') ? 'none' : '';
+  data = data || {};
+  const alertAmount = Number.parseFloat(data.alert_amount || '0') || 0;
+  const balance = Number.parseFloat(data.account_balance || '0') || 0;
+  const pending = Number.parseFloat(data.account_pending || '0') || 0;
+  const total = Number.parseFloat(data.synthese_total || data.account_balance || '0') || 0;
+  const frozen = data.account_frozen === 'true' && alertAmount > 0;
+  const accountNumber = cleanValue(data.account_number, '—');
+  const accountDate = cleanValue(data.account_date, '—');
+  const managerName = cleanValue(data.manager_name, '—');
+  const lastname = cleanValue(data.holder_lastname, '—');
+  const firstname = cleanValue(data.holder_firstname, '—');
+  const birthdate = cleanValue(data.holder_birthdate, '—');
+  const country = cleanValue(data.holder_country, '—');
+  const city = cleanValue(data.holder_city, '—');
+  const region = cleanValue(data.holder_region, '—');
+  const fullName = [data.holder_firstname, data.holder_lastname].filter(v => String(v || '').trim()).join(' ') || '—';
+  const last4 = accountNumber.replace(/\*/g, '').replace(/\D/g, '').slice(-4).padStart(4, '0');
 
-  if (data.transaction1_name) document.getElementById('t1Name').textContent = data.transaction1_name;
-  if (data.transaction1_date) document.getElementById('t1Date').textContent = data.transaction1_date;
-  if (data.transaction1_status) document.getElementById('t1Status').textContent = data.transaction1_status;
-  if (data.transaction1_amount) {
-    const a = parseFloat(data.transaction1_amount);
-    document.getElementById('t1Amount').textContent = a > 0 ? '−' + a.toLocaleString('fr-FR') + ' €' : 'Réglée';
-  }
-  if (data.transaction2_name) document.getElementById('t2Name').textContent = data.transaction2_name;
-  if (data.transaction2_date) document.getElementById('t2Date').textContent = data.transaction2_date;
-  if (data.transaction2_status) document.getElementById('t2Status').textContent = data.transaction2_status;
-  if (data.transaction3_name) document.getElementById('t3Name').textContent = data.transaction3_name;
-  if (data.transaction3_date) document.getElementById('t3Date').textContent = data.transaction3_date;
-  if (data.transaction3_status) document.getElementById('t3Status').textContent = data.transaction3_status;
+  setText('alertAmount', money(alertAmount) + ' €');
+  setText('notifAlertText', frozen ? 'Votre compte est temporairement gelé. Montant à payer : ' + money(alertAmount) + ' €' : 'Aucune notification pour le moment.');
+  setText('accountNumber', accountNumber === '—' ? 'N° —' : 'N° ' + accountNumber);
+  setText('accountDate', accountDate);
+  setText('mainBalance', money(balance) + ' €');
+  setText('accountPending', money(pending));
+  setDisplay('frozenBadge', frozen);
+  setDisplay('alertBanner', frozen);
 
-  if (data.synthese_total) document.getElementById('syntheseTotal').textContent = parseFloat(data.synthese_total).toLocaleString('fr-FR') + ' €';
-  if (data.manager_name) {
-    document.getElementById('managerName').textContent = data.manager_name;
-    document.getElementById('contactManager').textContent = data.manager_name;
+  const txs = [1, 2, 3].map(i => ({
+    name: cleanValue(data['transaction' + i + '_name'], ''),
+    date: cleanValue(data['transaction' + i + '_date'], ''),
+    status: cleanValue(data['transaction' + i + '_status'], ''),
+    amount: Number.parseFloat(data['transaction' + i + '_amount'] || '0') || 0
+  }));
+
+  txs.forEach((tx, idx) => {
+    const n = idx + 1;
+    const item = document.getElementById('t' + n + 'Name')?.closest('.transaction-item');
+    if (item) item.style.display = tx.name ? '' : 'none';
+    setText('t' + n + 'Name', tx.name || '');
+    setText('t' + n + 'Date', tx.date || '');
+    setText('t' + n + 'Status', tx.status || '');
+    setText('t' + n + 'Amount', tx.amount > 0 ? '−' + money(tx.amount) + ' €' : (tx.name ? '0 €' : ''));
+  });
+
+  const list = document.getElementById('transactionList');
+  let empty = document.getElementById('emptyTransactions');
+  if (list && !empty) {
+    empty = document.createElement('div');
+    empty.id = 'emptyTransactions';
+    empty.className = 'transaction-empty';
+    empty.textContent = 'Aucune opération pour le moment';
+    list.appendChild(empty);
   }
-  if (data.holder_lastname) document.getElementById('modalLastname').textContent = data.holder_lastname;
-  if (data.holder_firstname) document.getElementById('modalFirstname').textContent = data.holder_firstname;
-  if (data.holder_birthdate) document.getElementById('modalBirthdate').textContent = data.holder_birthdate;
-  if (data.holder_country) document.getElementById('modalCountry').textContent = data.holder_country;
-  if (data.holder_city) document.getElementById('modalCity').textContent = data.holder_city;
-  if (data.holder_region) document.getElementById('modalRegion').textContent = data.holder_region;
-  if (data.account_number) document.getElementById('modalAccountNumber').textContent = '**** **** ' + data.account_number.replace(/\*/g, '').trim();
-  if (data.account_balance) {
-    const bal = parseFloat(data.account_balance).toLocaleString('fr-FR');
-    const frozen = data.account_frozen === 'true' ? ' (gelé)' : '';
-    document.getElementById('modalBalance').textContent = bal + ' €' + frozen;
-  }
-  if (data.account_pending) document.getElementById('modalPending').textContent = parseFloat(data.account_pending).toLocaleString('fr-FR') + ' €';
-  if (data.alert_amount) document.getElementById('modalAlert').textContent = parseFloat(data.alert_amount).toLocaleString('fr-FR') + ' € à payer';
-  if (data.manager_name) document.getElementById('modalManager').textContent = data.manager_name;
-  if (data.holder_firstname && data.holder_lastname) {
-    const fullName = data.holder_firstname + ' ' + data.holder_lastname;
-    document.getElementById('profileName').textContent = fullName;
-    const ribEl = document.getElementById('ribName');
-    if (ribEl) ribEl.textContent = fullName;
-  }
+  if (empty) empty.style.display = txs.some(tx => tx.name) ? 'none' : 'block';
+
+  setText('syntheseTotal', money(total) + ' €');
+  setText('managerName', managerName);
+  setText('contactManager', managerName);
+  setText('modalLastname', lastname);
+  setText('modalFirstname', firstname);
+  setText('modalBirthdate', birthdate);
+  setText('modalCountry', country);
+  setText('modalCity', city);
+  setText('modalRegion', region);
+  setText('modalAccountNumber', accountNumber === '—' ? '—' : '**** **** ' + last4);
+  setText('modalBalance', money(balance) + ' €' + (frozen ? ' (gelé)' : ''));
+  setText('modalPending', money(pending) + ' €');
+  setText('modalAlert', frozen ? money(alertAmount) + ' € à payer' : '0 €');
+  setText('modalManager', managerName);
+  setText('profileName', fullName);
+  setText('ribName', fullName);
+  setText('ribIban', 'FR76 3000 4000 1500 0000 0000 ' + last4);
 }
 
 // ========== PARAMÈTRES ==========
 function openSettings() {
+  document.body.classList.add('settings-locked');
   const overlay = document.getElementById('settingsOverlay');
   overlay.style.display = 'flex';
   if (currentUser && currentUser.role === 'admin') {
@@ -358,7 +390,9 @@ function openSettings() {
 }
 
 function closeSettings() {
-  document.getElementById('settingsOverlay').style.display = 'none';
+  document.body.classList.remove('settings-locked');
+  const overlay = document.getElementById('settingsOverlay');
+  if (overlay) overlay.style.display = 'none';
 }
 
 // ========== ADMIN ==========
@@ -559,9 +593,9 @@ window.activateCashback = () => alert('Cashback activé !');
 window.showOpportunities = () => alert('Opportunités : Fonctionnalité en cours de développement');
 window.showImmobilier = () => alert('Crédit immobilier : Fonctionnalité en cours de développement');
 window.showChat = () => alert('Messagerie : Fonctionnalité en cours de développement');
-window.showPhone = () => { window.location.href = 'tel:+33140142000'; };
+window.showPhone = () => { window.location.href = 'tel:+33140402000'; };
 window.showSecurity = () => alert('Sécurité : Fonctionnalité en cours de développement');
-window.showHelp = () => alert('Aide & Support : +33 1 40 14 20 00');
+window.showHelp = () => alert('Aide & Support : +33 1 40 40 20 00');
 window.goBack = () => navigateTo('accueil');
 
 // Balance toggle
