@@ -382,7 +382,7 @@ function applyData(data) {
 
   setText('alertAmount', money(alertAmount) + ' €');
   setText('notifAlertText', frozen ? 'Votre compte est temporairement gelé. Montant à payer : ' + money(alertAmount) + ' €' : 'Aucune notification pour le moment.');
-  setText('accountNumber', accountNumber === '—' ? 'N° —' : 'N° ' + accountNumber);
+  setText('accountNumber', accountNumber === '—' ? 'N° —' : 'N° **** **** **** ' + last4);
   setText('accountDate', accountDate);
   setText('mainBalance', money(balance) + ' €');
   setText('accountPending', money(pending));
