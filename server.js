@@ -533,6 +533,52 @@ app.get('/api/admin/users/:id/transfers', auth, adminOnly, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Modifier un virement existant (date, libellé, bénéficiaire, montant, statut, motif)
+app.put('/api/admin/users/:id/transfers/:txId', auth, adminOnly, express.json(), async (req, res) => {
+  try {
+    const data = await getAccountData(req.params.id);
+    const transfers = parseTransfers(data.transfers_json);
+    const idx = transfers.findIndex(t => String(t.id) === String(req.params.txId));
+    if (idx === -1) return res.status(404).json({ error: 'Virement introuvable' });
+    const b = req.body || {};
+    const cur = transfers[idx];
+    if (b.date !== undefined) {
+      const d = String(b.date).trim();
+      cur.date = d;
+      cur.dateLabel = d;
+    }
+    if (b.label !== undefined) cur.label = String(b.label);
+    if (b.beneficiary !== undefined) cur.beneficiary = String(b.beneficiary);
+    if (b.amount !== undefined) {
+      const amt = Number(String(b.amount).replace(',', '.'));
+      if (Number.isFinite(amt)) { cur.amount = amt; cur.type = amt < 0 ? 'debit' : 'credit'; }
+    }
+    if (b.status !== undefined) cur.status = String(b.status);
+    if (b.motif !== undefined) cur.motif = String(b.motif);
+    transfers[idx] = cur;
+    const pending = computePending(transfers);
+    await saveAccountData(req.params.id, {
+      account_pending: pending,
+      transfers_json: JSON.stringify(transfers).slice(0, 200000)
+    });
+    res.json({ success: true, transfer: cur });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Supprimer un virement
+app.delete('/api/admin/users/:id/transfers/:txId', auth, adminOnly, async (req, res) => {
+  try {
+    const data = await getAccountData(req.params.id);
+    const transfers = parseTransfers(data.transfers_json).filter(t => String(t.id) !== String(req.params.txId));
+    const pending = computePending(transfers);
+    await saveAccountData(req.params.id, {
+      account_pending: pending,
+      transfers_json: JSON.stringify(transfers).slice(0, 200000)
+    });
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Créditer un compte (administration) — le montant apparaît dans « À venir » côté client
 app.post('/api/admin/users/:id/credit', auth, adminOnly, async (req, res) => {
   try {
@@ -740,10 +786,12 @@ app.post('/api/admin/import', auth, adminOnly, express.json({ limit: '25mb' }), 
       const k = pick(t, 'user_id', 'username', 'utilisateur', 'utilisateur_email', 'email');
       if (!k) return;
       const amount = Number(pick(t, 'amount', 'montant')) || 0;
+      const dateStr = toFrDate(pick(t, 'date'));
       (transfersByUser[k] = transfersByUser[k] || []).push({
         id: pick(t, 'id') || genId(),
-        date: toFrDate(pick(t, 'date')),
-        dateLabel: pick(t, 'dateLabel', 'libelle', 'libellé', 'label') || 'Opération',
+        date: dateStr,
+        dateLabel: dateStr,
+        label: pick(t, 'libelle', 'libellé', 'label', 'description') || 'Opération',
         beneficiary: pick(t, 'beneficiary', 'beneficiaire', 'bénéficiaire'),
         iban: pick(t, 'iban') || '',
         amount,

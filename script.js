@@ -493,9 +493,9 @@ async function refreshOperations() {
         + '<div class="transaction-icon" style="background:' + iconBg + ';color:#fff;">'
         + (isCredit ? '↓' : '↑') + '</div>'
         + '<div class="transaction-info">'
-        + '<div class="transaction-name">' + escapeHtml(t.beneficiary || '—') + '</div>'
-        + '<div class="transaction-date">' + escapeHtml(t.dateLabel || '') + '</div>'
-        + '<div class="transaction-status ' + statusClass + '">' + escapeHtml(statusLabel) + '</div>'
+        + '<div class="transaction-name">' + escapeHtml((t.label ? t.label + (t.beneficiary ? ' — ' + t.beneficiary : '') : (t.beneficiary || '—'))) + '</div>'
+        + '<div class="transaction-date">' + escapeHtml(t.dateLabel || t.date || '') + '</div>'
+        + '<div class="transaction-status ' + statusClass + '">' + escapeHtml(statusLabel) + (t.motif ? ' · ' + escapeHtml(t.motif) : '') + '</div>'
         + '</div>'
         + '<div class="transaction-amount" style="color:' + color + ';font-weight:700;">' + sign + abs + ' €</div>'
         + '</div>';
@@ -736,13 +736,15 @@ async function loadAdminTransfers(userId) {
   try {
     const r = await fetch('/api/admin/users/' + userId + '/transfers', { headers: getAuthHeaders() });
     const transfers = await r.json();
-    list.innerHTML = renderTransfersHtml(transfers, 'Aucun virement réalisé par cet utilisateur.');
+    list.innerHTML = renderTransfersHtml(transfers, 'Aucun virement réalisé par cet utilisateur.', { admin: true, userId });
   } catch {
     list.innerHTML = '<p style="color:#c0392b;font-size:13px;padding:16px;">Erreur de chargement.</p>';
   }
 }
+async function loadUserTransfers(userId) { return loadAdminTransfers(userId); }
 
-function renderTransfersHtml(transfers, emptyMsg) {
+function renderTransfersHtml(transfers, emptyMsg, opts) {
+  opts = opts || {};
   if (!Array.isArray(transfers) || transfers.length === 0) {
     return '<p style="color:#888;font-size:13px;padding:16px;text-align:center;">' + emptyMsg + '</p>';
   }
@@ -752,14 +754,53 @@ function renderTransfersHtml(transfers, emptyMsg) {
     const abs = Math.abs(raw).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const sign = isCredit ? '+' : '−';
     const color = isCredit ? '#1a7a4a' : '#c0392b';
+    const title = (t.label ? t.label + (t.beneficiary ? ' — ' + t.beneficiary : '') : (t.beneficiary || '—'));
+    const adminBtns = opts.admin
+      ? '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn-small" onclick="editTransferPrompt(\'' + escapeHtml(opts.userId||'') + '\',\'' + escapeHtml(t.id||'') + '\')">✏️ Modifier</button>'
+        + '<button class="btn-small" style="color:#c0392b" onclick="deleteTransferAdmin(\'' + escapeHtml(opts.userId||'') + '\',\'' + escapeHtml(t.id||'') + '\')">🗑️ Supprimer</button></div>'
+      : '';
     return '<div class="history-item">'
-      + '<div class="history-row"><span class="history-bene">' + escapeHtml(t.beneficiary || '—') + '</span><span class="history-amount" style="color:' + color + ';font-weight:700;">' + sign + abs + ' €</span></div>'
-      + '<div class="history-meta">' + escapeHtml(t.dateLabel || t.date || '') + ' · ' + escapeHtml(t.status || 'Exécuté') + '</div>'
+      + '<div class="history-row"><span class="history-bene">' + escapeHtml(title) + '</span><span class="history-amount" style="color:' + color + ';font-weight:700;">' + sign + abs + ' €</span></div>'
+      + '<div class="history-meta"><strong>📅 ' + escapeHtml(t.dateLabel || t.date || 'Date non renseignée') + '</strong> · ' + escapeHtml(t.status || 'Exécuté') + '</div>'
       + (t.iban ? '<div class="history-meta">IBAN : ' + escapeHtml(t.iban) + '</div>' : '')
       + (t.motif ? '<div class="history-meta">Motif : ' + escapeHtml(t.motif) + '</div>' : '')
       + (t.fromAccount ? '<div class="history-meta">Depuis : ' + escapeHtml(t.fromAccount) + '</div>' : '')
+      + adminBtns
       + '</div>';
   }).join('');
+}
+
+async function editTransferPrompt(userId, txId) {
+  const newDate = prompt('Nouvelle date du virement (format JJ/MM/AAAA) :');
+  if (newDate === null) return;
+  const newLabel = prompt('Libellé (laisser vide pour ne pas changer) :', '');
+  const newStatus = prompt('Statut (Validé / À venir / Bloqué) — vide = ne pas changer :', '');
+  const newAmount = prompt('Montant (négatif pour débit) — vide = ne pas changer :', '');
+  const body = {};
+  if (newDate.trim()) body.date = newDate.trim();
+  if (newLabel) body.label = newLabel;
+  if (newStatus) body.status = newStatus;
+  if (newAmount) body.amount = newAmount;
+  try {
+    const r = await fetch('/api/admin/users/' + userId + '/transfers/' + txId, {
+      method: 'PUT',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) { alert('Erreur de mise à jour'); return; }
+    await loadUserTransfers(userId);
+  } catch { alert('Erreur réseau'); }
+}
+
+async function deleteTransferAdmin(userId, txId) {
+  if (!confirm('Supprimer ce virement ?')) return;
+  try {
+    const r = await fetch('/api/admin/users/' + userId + '/transfers/' + txId, {
+      method: 'DELETE', headers: getAuthHeaders()
+    });
+    if (!r.ok) { alert('Erreur de suppression'); return; }
+    await loadUserTransfers(userId);
+  } catch { alert('Erreur réseau'); }
 }
 
 async function adminResetPassword() {
