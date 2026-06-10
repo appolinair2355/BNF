@@ -81,7 +81,7 @@ function generateUserId() {
 function generateAccountNumber() {
   const ts = Date.now().toString().slice(-6);
   const rnd = crypto.randomInt(0, 10000).toString().padStart(4, '0');
-  const n = ts + rnd; // 10 chiffres
+  const n = ts + rnd;
   return `FR76 3000 4000 ${n.slice(0,4)} ${n.slice(4,8)} ${n.slice(8,10)}00`;
 }
 
@@ -96,10 +96,13 @@ function getEmptyData(accountNumber) {
     holder_lastname: '',
     holder_firstname: '',
     holder_birthdate: '',
+    holder_gender: '',
     holder_country: '',
     holder_city: '',
     holder_region: '',
     manager_name: '',
+    manager_phone: '',
+    manager_email: '',
     transaction1_name: '',
     transaction1_date: '',
     transaction1_status: '',
@@ -112,13 +115,13 @@ function getEmptyData(accountNumber) {
     transaction3_date: '',
     transaction3_status: '',
     transaction3_amount: '0',
-    synthese_total: '0'
+    synthese_total: '0',
+    transfers_json: '[]'
   };
 }
 
 async function initFileStorage() {
   let users = readUsers();
-  // Supprime les anciens comptes admin obsolètes
   const before = users.length;
   users = users.filter(u => !LEGACY_ADMIN_USERNAMES.includes(u.username));
   if (users.length !== before) console.log('🧹 Ancien admin supprimé.');
@@ -144,31 +147,25 @@ async function initDB() {
     await initFileStorage();
     return;
   }
-
   let client;
   try {
     client = await pool.connect();
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        username VARCHAR(100) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        pin_hash VARCHAR(255) NOT NULL,
-        role VARCHAR(20) DEFAULT 'user',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS account_data (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        key VARCHAR(100) NOT NULL,
-        value TEXT NOT NULL,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, key)
-      )
-    `);
-    // Supprime les anciens admins obsolètes
+    await client.query(`CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      username VARCHAR(100) UNIQUE NOT NULL,
+      password_hash VARCHAR(255) NOT NULL,
+      pin_hash VARCHAR(255) NOT NULL,
+      role VARCHAR(20) DEFAULT 'user',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+    await client.query(`CREATE TABLE IF NOT EXISTS account_data (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      key VARCHAR(100) NOT NULL,
+      value TEXT NOT NULL,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, key)
+    )`);
     for (const legacy of LEGACY_ADMIN_USERNAMES) {
       await client.query(`DELETE FROM users WHERE username = $1`, [legacy]);
     }
@@ -206,9 +203,7 @@ async function initDB() {
 }
 
 async function findUser(username) {
-  if (!useDB) {
-    return readUsers().find(u => u.username === username) || null;
-  }
+  if (!useDB) return readUsers().find(u => u.username === username) || null;
   const r = await pool.query(`SELECT * FROM users WHERE username = $1`, [username]);
   if (!r.rows.length) return null;
   const row = r.rows[0];
@@ -216,9 +211,7 @@ async function findUser(username) {
 }
 
 async function findUserById(id) {
-  if (!useDB) {
-    return readUsers().find(u => u.id === id) || null;
-  }
+  if (!useDB) return readUsers().find(u => u.id === id) || null;
   const r = await pool.query(`SELECT * FROM users WHERE id = $1`, [id]);
   if (!r.rows.length) return null;
   const row = r.rows[0];
@@ -227,7 +220,6 @@ async function findUserById(id) {
 
 async function createUser(username, passwordHash, pinHash) {
   const seed = getEmptyData();
-
   if (!useDB) {
     const users = readUsers();
     const id = generateUserId();
@@ -237,7 +229,6 @@ async function createUser(username, passwordHash, pinHash) {
     writeAccountFile(id, seed);
     return user;
   }
-
   const r = await pool.query(
     `INSERT INTO users (username, password_hash, pin_hash, role) VALUES ($1,$2,$3,'user') RETURNING *`,
     [username, passwordHash, pinHash]
@@ -254,9 +245,7 @@ async function createUser(username, passwordHash, pinHash) {
 }
 
 async function getAllUsers() {
-  if (!useDB) {
-    return readUsers().map(u => ({ id: u.id, username: u.username, role: u.role, createdAt: u.createdAt }));
-  }
+  if (!useDB) return readUsers().map(u => ({ id: u.id, username: u.username, role: u.role, createdAt: u.createdAt }));
   const r = await pool.query(`SELECT id, username, role, created_at FROM users ORDER BY created_at`);
   return r.rows.map(row => ({ id: String(row.id), username: row.username, role: row.role, createdAt: row.created_at }));
 }
@@ -264,12 +253,11 @@ async function getAllUsers() {
 async function getAccountData(userId) {
   if (!useDB) {
     const data = readAccountFile(userId);
-    if (data && Object.keys(data).length) return data;
+    if (data && Object.keys(data).length) return { ...getEmptyData(data.account_number), ...data };
     const seed = getEmptyData();
     writeAccountFile(userId, seed);
     return seed;
   }
-
   const r = await pool.query(`SELECT key, value FROM account_data WHERE user_id = $1`, [userId]);
   if (!r.rows.length) {
     const seed = getEmptyData();
@@ -293,7 +281,6 @@ async function saveAccountData(userId, updates) {
     writeAccountFile(userId, { ...current, account_number: accountNumber, ...updates });
     return;
   }
-
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -366,7 +353,6 @@ app.post('/api/auth/register', async (req, res) => {
     const pinHash = await bcrypt.hash(pin, 10);
     const user = await createUser(username.trim(), pwHash, pinHash);
 
-    // Enregistrer les infos du titulaire (le numéro de compte est généré automatiquement par createUser)
     await saveAccountData(user.id, {
       holder_firstname: String(firstName).trim(),
       holder_lastname: String(lastName).trim(),
@@ -378,11 +364,7 @@ app.post('/api/auth/register', async (req, res) => {
     const accountData = await getAccountData(user.id);
     const token = jwt.sign({ userId: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '30d' });
     res.json({
-      success: true,
-      token,
-      userId: user.id,
-      username: user.username,
-      role: user.role,
+      success: true, token, userId: user.id, username: user.username, role: user.role,
       account: {
         firstName: accountData.holder_firstname,
         lastName: accountData.holder_lastname,
@@ -391,27 +373,20 @@ app.post('/api/auth/register', async (req, res) => {
         accountDate: accountData.account_date
       }
     });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ error: 'Identifiant et mot de passe requis' });
-
     const user = await findUser(username.trim());
     if (!user) return res.status(401).json({ error: 'Identifiant ou mot de passe incorrect' });
-
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).json({ error: 'Identifiant ou mot de passe incorrect' });
-
     const token = jwt.sign({ userId: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ success: true, token, userId: user.id, username: user.username, role: user.role });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/auth/verify-pin', auth, async (req, res) => {
@@ -423,9 +398,7 @@ app.post('/api/auth/verify-pin', auth, async (req, res) => {
     const ok = await bcrypt.compare(String(pin), user.pinHash);
     if (!ok) return res.status(401).json({ error: 'Code PIN incorrect' });
     res.json({ success: true });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/auth/verify-token', auth, (req, res) => {
@@ -433,22 +406,62 @@ app.post('/api/auth/verify-token', auth, (req, res) => {
 });
 
 app.get('/api/client-data', auth, async (req, res) => {
-  try {
-    res.json(await getAccountData(req.user.userId));
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  try { res.json(await getAccountData(req.user.userId)); }
+  catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/client-data', auth, async (req, res) => {
-  try {
-    await saveAccountData(req.user.userId, req.body);
-    res.json({ success: true });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  try { await saveAccountData(req.user.userId, req.body); res.json({ success: true }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ========== VIREMENTS ==========
+function parseTransfers(raw) {
+  try { const v = JSON.parse(raw || '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
+}
+
+app.get('/api/transfers', auth, async (req, res) => {
+  try {
+    const data = await getAccountData(req.user.userId);
+    res.json(parseTransfers(data.transfers_json));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/transfers', auth, async (req, res) => {
+  try {
+    const { beneficiary, iban, amount, motif } = req.body || {};
+    const amt = Number.parseFloat(String(amount || '0').replace(',', '.'));
+    if (!beneficiary || !String(beneficiary).trim()) return res.status(400).json({ error: 'Bénéficiaire requis' });
+    if (!Number.isFinite(amt) || amt <= 0) return res.status(400).json({ error: 'Montant invalide' });
+
+    const data = await getAccountData(req.user.userId);
+    if (data.account_frozen === 'true') return res.status(403).json({ error: 'Compte gelé : virement impossible. Contactez votre conseiller.' });
+    const balance = Number.parseFloat(data.account_balance || '0') || 0;
+    if (amt > balance) return res.status(400).json({ error: 'Solde insuffisant pour effectuer ce virement.' });
+
+    const transfers = parseTransfers(data.transfers_json);
+    const tx = {
+      id: 'tr-' + Date.now() + '-' + crypto.randomBytes(3).toString('hex'),
+      date: new Date().toISOString(),
+      dateLabel: new Date().toLocaleString('fr-FR'),
+      beneficiary: String(beneficiary).trim(),
+      iban: String(iban || '').trim(),
+      amount: amt,
+      motif: String(motif || '').trim(),
+      status: 'Exécuté',
+      fromAccount: data.account_number
+    };
+    transfers.unshift(tx);
+    const newBalance = (balance - amt).toFixed(2);
+    await saveAccountData(req.user.userId, {
+      transfers_json: JSON.stringify(transfers).slice(0, 200000),
+      account_balance: newBalance
+    });
+    res.json({ success: true, transfer: tx, newBalance });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ========== ADMIN ==========
 app.get('/api/admin/users', auth, adminOnly, async (req, res) => {
   try { res.json(await getAllUsers()); }
   catch (e) { res.status(500).json({ error: e.message }); }
@@ -462,6 +475,26 @@ app.get('/api/admin/users/:id/data', auth, adminOnly, async (req, res) => {
 app.post('/api/admin/users/:id/data', auth, adminOnly, async (req, res) => {
   try { await saveAccountData(req.params.id, req.body); res.json({ success: true }); }
   catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/users/:id/transfers', auth, adminOnly, async (req, res) => {
+  try {
+    const data = await getAccountData(req.params.id);
+    res.json(parseTransfers(data.transfers_json));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Créditer un compte (administration)
+app.post('/api/admin/users/:id/credit', auth, adminOnly, async (req, res) => {
+  try {
+    const amt = Number.parseFloat(String(req.body?.amount || '0').replace(',', '.'));
+    if (!Number.isFinite(amt) || amt === 0) return res.status(400).json({ error: 'Montant invalide' });
+    const data = await getAccountData(req.params.id);
+    const balance = Number.parseFloat(data.account_balance || '0') || 0;
+    const newBalance = (balance + amt).toFixed(2);
+    await saveAccountData(req.params.id, { account_balance: newBalance });
+    res.json({ success: true, newBalance });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.post('/api/admin/users/:id/reset-password', auth, adminOnly, async (req, res) => {
@@ -481,9 +514,7 @@ app.delete('/api/admin/users/:id', auth, adminOnly, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
+app.get('*', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
 
 app.listen(PORT, '0.0.0.0', async () => {
   await initDB();

@@ -349,6 +349,8 @@ function applyData(data) {
   const accountNumber = cleanValue(data.account_number, '—');
   const accountDate = cleanValue(data.account_date, '—');
   const managerName = cleanValue(data.manager_name, '—');
+  const managerPhoneRaw = String(data.manager_phone || '').trim();
+  const managerEmailRaw = String(data.manager_email || '').trim();
   const lastname = cleanValue(data.holder_lastname, '—');
   const firstname = cleanValue(data.holder_firstname, '—');
   const birthdate = cleanValue(data.holder_birthdate, '—');
@@ -357,6 +359,11 @@ function applyData(data) {
   const region = cleanValue(data.holder_region, '—');
   const fullName = [data.holder_firstname, data.holder_lastname].filter(v => String(v || '').trim()).join(' ') || '—';
   const last4 = accountNumber.replace(/\*/g, '').replace(/\D/g, '').slice(-4).padStart(4, '0');
+
+  // Mémorise pour le virement
+  window.__currentBalance = balance;
+  window.__currentFrozen = frozen;
+  window.__currentManagerPhone = managerPhoneRaw;
 
   setText('alertAmount', money(alertAmount) + ' €');
   setText('notifAlertText', frozen ? 'Votre compte est temporairement gelé. Montant à payer : ' + money(alertAmount) + ' €' : 'Aucune notification pour le moment.');
@@ -398,6 +405,19 @@ function applyData(data) {
   setText('syntheseTotal', money(total) + ' €');
   setText('managerName', managerName);
   setText('contactManager', managerName);
+  setText('settingsManagerName', managerName);
+
+  // Téléphone & email du conseiller : affichés uniquement si l'admin les a configurés
+  const phoneVisible = !!managerPhoneRaw;
+  setDisplay('settingsManagerPhoneRow', phoneVisible);
+  setDisplay('contactPhoneRow', phoneVisible);
+  setText('settingsManagerPhone', managerPhoneRaw || '—');
+  setText('contactPhone', managerPhoneRaw || '—');
+
+  const emailVisible = !!managerEmailRaw;
+  setDisplay('settingsManagerEmailRow', emailVisible);
+  setText('settingsManagerEmail', managerEmailRaw || '—');
+
   setText('modalLastname', lastname);
   setText('modalFirstname', firstname);
   setText('modalBirthdate', birthdate);
@@ -411,7 +431,8 @@ function applyData(data) {
   setText('modalManager', managerName);
   setText('profileName', fullName);
   setText('ribName', fullName);
-  setText('ribIban', 'FR76 3000 4000 1500 0000 0000 ' + last4);
+  setText('ribIban', accountNumber === '—' ? 'FR76 3000 4000 0000 0000 0000 0000' : accountNumber);
+  setText('virementAvailable', money(balance) + ' €');
 }
 
 // ========== PARAMÈTRES ==========
@@ -439,14 +460,11 @@ function closeSettings() {
 function switchAdminTab(tab) {
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.admin-tab-content').forEach(t => t.classList.remove('active'));
-
-  if (tab === 'users') {
-    document.getElementById('tabUsers').classList.add('active');
-    document.getElementById('adminTabUsers').classList.add('active');
-  } else {
-    document.getElementById('tabEdit').classList.add('active');
-    document.getElementById('adminTabEdit').classList.add('active');
-  }
+  const map = { users: ['tabUsers','adminTabUsers'], edit: ['tabEdit','adminTabEdit'], history: ['tabHistory','adminTabHistory'] };
+  const ids = map[tab] || map.users;
+  document.getElementById(ids[0]).classList.add('active');
+  document.getElementById(ids[1]).classList.add('active');
+  if (tab === 'history' && selectedUserId) loadAdminTransfers(selectedUserId);
 }
 
 async function loadAdminUsers() {
@@ -481,18 +499,20 @@ async function loadAdminUsers() {
 async function selectUser(userId, username) {
   selectedUserId = userId;
   document.getElementById('adminSelectedUsername').textContent = username;
+  document.getElementById('adminHistoryUsername').textContent = username;
   document.getElementById('adminSaveStatus').textContent = '';
   document.getElementById('adm_new_password').value = '';
+  document.getElementById('adm_credit_amount').value = '';
 
   try {
     const r = await fetch('/api/admin/users/' + userId + '/data', { headers: getAuthHeaders() });
     const data = await r.json();
     const fields = ['alert_amount','account_number','account_date','account_balance','account_frozen',
-      'account_pending','holder_lastname','holder_firstname','holder_birthdate','holder_country',
-      'holder_city','holder_region','manager_name','transaction1_name','transaction1_date',
-      'transaction1_status','transaction1_amount','transaction2_name','transaction2_date',
-      'transaction2_status','transaction2_amount','transaction3_name','transaction3_date',
-      'transaction3_status','transaction3_amount','synthese_total'];
+      'account_pending','holder_lastname','holder_firstname','holder_birthdate','holder_gender',
+      'holder_country','holder_city','holder_region','manager_name','manager_phone','manager_email',
+      'transaction1_name','transaction1_date','transaction1_status','transaction1_amount',
+      'transaction2_name','transaction2_date','transaction2_status','transaction2_amount',
+      'transaction3_name','transaction3_date','transaction3_status','transaction3_amount','synthese_total'];
 
     fields.forEach(key => {
       const el = document.getElementById('adm_' + key);
@@ -505,49 +525,83 @@ async function selectUser(userId, username) {
     document.querySelectorAll('.admin-user-item').forEach(item => item.classList.remove('selected'));
     switchAdminTab('edit');
     loadAdminUsers();
+    loadAdminTransfers(userId);
   } catch {
     alert('Impossible de charger les données de cet utilisateur.');
   }
 }
 
-async function adminSaveData() {
-  if (!selectedUserId) return;
+function showAdminStatus(msg, ok) {
   const statusEl = document.getElementById('adminSaveStatus');
-  statusEl.textContent = '';
-  statusEl.className = 'admin-save-status';
+  statusEl.textContent = msg;
+  statusEl.className = 'admin-save-status ' + (ok ? 'success' : 'error');
+  statusEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setTimeout(() => { statusEl.textContent = ''; statusEl.className = 'admin-save-status'; }, 4000);
+}
 
-  const fields = ['alert_amount','account_number','account_date','account_balance','account_frozen',
-    'account_pending','holder_lastname','holder_firstname','holder_birthdate','holder_country',
-    'holder_city','holder_region','manager_name','transaction1_name','transaction1_date',
-    'transaction1_status','transaction1_amount','transaction2_name','transaction2_date',
-    'transaction2_status','transaction2_amount','transaction3_name','transaction3_date',
-    'transaction3_status','transaction3_amount','synthese_total'];
-
+async function adminSaveSection(sectionName, fields) {
+  if (!selectedUserId) { showAdminStatus('Sélectionnez d\'abord un utilisateur.', false); return; }
   const updates = {};
   fields.forEach(key => {
     const el = document.getElementById('adm_' + key);
     if (el) updates[key] = el.value;
   });
-
   try {
     const r = await fetch('/api/admin/users/' + selectedUserId + '/data', {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(updates)
+      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(updates)
     });
+    if (r.ok) showAdminStatus('✅ Section "' + sectionName + '" enregistrée.', true);
+    else { const d = await r.json(); showAdminStatus('❌ ' + (d.error || 'Erreur'), false); }
+  } catch { showAdminStatus('❌ Erreur réseau', false); }
+}
+
+async function adminCreditAccount() {
+  if (!selectedUserId) { showAdminStatus('Sélectionnez d\'abord un utilisateur.', false); return; }
+  const amount = document.getElementById('adm_credit_amount').value;
+  try {
+    const r = await fetch('/api/admin/users/' + selectedUserId + '/credit', {
+      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ amount })
+    });
+    const d = await r.json();
     if (r.ok) {
-      statusEl.textContent = '✅ Modifications enregistrées !';
-      statusEl.className = 'admin-save-status success';
-    } else {
-      const d = await r.json();
-      statusEl.textContent = '❌ ' + (d.error || 'Erreur');
-      statusEl.className = 'admin-save-status error';
-    }
+      showAdminStatus('✅ Compte crédité. Nouveau solde : ' + d.newBalance + ' €', true);
+      document.getElementById('adm_credit_amount').value = '';
+      // Reload balance field
+      const fresh = await fetch('/api/admin/users/' + selectedUserId + '/data', { headers: getAuthHeaders() });
+      if (fresh.ok) {
+        const data = await fresh.json();
+        document.getElementById('adm_account_balance').value = data.account_balance || '';
+      }
+    } else showAdminStatus('❌ ' + (d.error || 'Erreur'), false);
+  } catch { showAdminStatus('❌ Erreur réseau', false); }
+}
+
+async function loadAdminTransfers(userId) {
+  const list = document.getElementById('adminTransfersList');
+  list.innerHTML = '<p style="color:#888;font-size:13px;padding:16px;">Chargement…</p>';
+  try {
+    const r = await fetch('/api/admin/users/' + userId + '/transfers', { headers: getAuthHeaders() });
+    const transfers = await r.json();
+    list.innerHTML = renderTransfersHtml(transfers, 'Aucun virement réalisé par cet utilisateur.');
   } catch {
-    statusEl.textContent = '❌ Erreur réseau';
-    statusEl.className = 'admin-save-status error';
+    list.innerHTML = '<p style="color:#c0392b;font-size:13px;padding:16px;">Erreur de chargement.</p>';
   }
-  setTimeout(() => { statusEl.textContent = ''; statusEl.className = 'admin-save-status'; }, 4000);
+}
+
+function renderTransfersHtml(transfers, emptyMsg) {
+  if (!Array.isArray(transfers) || transfers.length === 0) {
+    return '<p style="color:#888;font-size:13px;padding:16px;text-align:center;">' + emptyMsg + '</p>';
+  }
+  return transfers.map(t => {
+    const amt = Number(t.amount || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return '<div class="history-item">'
+      + '<div class="history-row"><span class="history-bene">' + escapeHtml(t.beneficiary || '—') + '</span><span class="history-amount">−' + amt + ' €</span></div>'
+      + '<div class="history-meta">' + escapeHtml(t.dateLabel || t.date || '') + ' · ' + escapeHtml(t.status || 'Exécuté') + '</div>'
+      + (t.iban ? '<div class="history-meta">IBAN : ' + escapeHtml(t.iban) + '</div>' : '')
+      + (t.motif ? '<div class="history-meta">Motif : ' + escapeHtml(t.motif) + '</div>' : '')
+      + (t.fromAccount ? '<div class="history-meta">Depuis : ' + escapeHtml(t.fromAccount) + '</div>' : '')
+      + '</div>';
+  }).join('');
 }
 
 async function adminResetPassword() {
@@ -557,14 +611,31 @@ async function adminResetPassword() {
   if (!confirm('Réinitialiser le mot de passe de cet utilisateur ?')) return;
   try {
     const r = await fetch('/api/admin/users/' + selectedUserId + '/reset-password', {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ newPassword: pw })
+      method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ newPassword: pw })
     });
     const d = await r.json();
-    if (r.ok) { alert('✅ Mot de passe réinitialisé.'); document.getElementById('adm_new_password').value = ''; }
-    else alert('❌ ' + (d.error || 'Erreur'));
-  } catch { alert('Erreur réseau.'); }
+    if (r.ok) { showAdminStatus('✅ Mot de passe réinitialisé.', true); document.getElementById('adm_new_password').value = ''; }
+    else showAdminStatus('❌ ' + (d.error || 'Erreur'), false);
+  } catch { showAdminStatus('❌ Erreur réseau', false); }
+}
+
+async function adminDeleteUser() {
+  if (!selectedUserId) return;
+  const name = document.getElementById('adminSelectedUsername').textContent;
+  if (!confirm('Supprimer définitivement le compte de "' + name + '" ?')) return;
+  try {
+    const r = await fetch('/api/admin/users/' + selectedUserId, {
+      method: 'DELETE', headers: getAuthHeaders()
+    });
+    const d = await r.json();
+    if (r.ok) {
+      selectedUserId = null;
+      document.getElementById('adminSelectedUsername').textContent = '—';
+      switchAdminTab('users');
+      loadAdminUsers();
+      showAdminStatus('✅ Compte supprimé.', true);
+    } else showAdminStatus('❌ ' + (d.error || 'Erreur'), false);
+  } catch { showAdminStatus('❌ Erreur réseau', false); }
 }
 
 async function adminDeleteUser() {
@@ -627,7 +698,69 @@ function showInfo(title, bodyHtml, icon) {
 }
 window.showInfo = showInfo;
 
-window.showVirement = () => openModal('virementModal');
+function managerContactRowsHtml() {
+  const phone = window.__currentManagerPhone || '';
+  const rows = [];
+  if (phone) {
+    rows.push('<div class="info-row"><span class="label">Téléphone</span><span class="value"><a href="tel:' + phone.replace(/\s/g,'') + '" style="color:#1a7a4a;text-decoration:none;">' + escapeHtml(phone) + '</a></span></div>');
+  } else {
+    rows.push('<div class="info-row"><span class="label">Téléphone</span><span class="value" style="color:#888;">Non configuré</span></div>');
+  }
+  return rows.join('');
+}
+
+window.showVirement = () => {
+  document.getElementById('virBeneficiary').value = '';
+  document.getElementById('virIban').value = '';
+  document.getElementById('virAmount').value = '';
+  document.getElementById('virMotif').value = '';
+  document.getElementById('virementError').textContent = '';
+  openModal('virementModal');
+};
+
+window.showHistory = async () => {
+  const list = document.getElementById('historyList');
+  list.innerHTML = '<p style="color:#888;font-size:13px;padding:16px;text-align:center;">Chargement…</p>';
+  openModal('historyModal');
+  try {
+    const r = await fetch('/api/transfers', { headers: getAuthHeaders() });
+    const transfers = await r.json();
+    list.innerHTML = renderTransfersHtml(transfers, 'Aucun virement effectué.');
+  } catch {
+    list.innerHTML = '<p style="color:#c0392b;font-size:13px;padding:16px;text-align:center;">Erreur de chargement.</p>';
+  }
+};
+
+window.doTransfer = async () => {
+  const beneficiary = document.getElementById('virBeneficiary').value.trim();
+  const iban = document.getElementById('virIban').value.trim();
+  const amount = document.getElementById('virAmount').value.trim();
+  const motif = document.getElementById('virMotif').value.trim();
+  const errEl = document.getElementById('virementError');
+  errEl.textContent = '';
+  if (!beneficiary) { errEl.textContent = 'Le nom du bénéficiaire est requis.'; return; }
+  const amt = Number.parseFloat(amount.replace(',', '.'));
+  if (!Number.isFinite(amt) || amt <= 0) { errEl.textContent = 'Montant invalide.'; return; }
+  try {
+    const r = await fetch('/api/transfers', {
+      method: 'POST', headers: getAuthHeaders(),
+      body: JSON.stringify({ beneficiary, iban, amount, motif })
+    });
+    const d = await r.json();
+    if (!r.ok) { errEl.textContent = d.error || 'Erreur lors du virement.'; return; }
+    closeModal('virementModal');
+    showInfo('Virement effectué ✅',
+      '<p>Votre virement a été enregistré avec succès.</p>'
+      + '<div class="info-row"><span class="label">Bénéficiaire</span><span class="value">' + escapeHtml(beneficiary) + '</span></div>'
+      + '<div class="info-row"><span class="label">Montant</span><span class="value">−' + amt.toLocaleString('fr-FR', {minimumFractionDigits:2,maximumFractionDigits:2}) + ' €</span></div>'
+      + '<div class="info-row"><span class="label">Nouveau solde</span><span class="value" style="color:#1a7a4a;">' + Number(d.newBalance).toLocaleString('fr-FR', {minimumFractionDigits:2,maximumFractionDigits:2}) + ' €</span></div>'
+      + '<p style="margin-top:10px;color:#666;font-size:13px;">Retrouvez-le dans <strong>Mes virements</strong>.</p>', '💸');
+    loadData();
+  } catch {
+    errEl.textContent = 'Erreur réseau.';
+  }
+};
+
 window.showRIB = () => openModal('ribModal');
 window.showPlafonds = () => openModal('plafondsModal');
 window.showNotifications = () => openModal('notifModal');
@@ -651,11 +784,7 @@ window.showInsurance = () => showInfo('Mes assurances',
   + '<div class="info-row"><span class="label">Assurance santé</span><span class="value">Non souscrit</span></div>'
   + '<p style="margin-top:10px;color:#666;font-size:13px;">Demandez un devis personnalisé auprès de votre conseiller.</p>', '🛡️');
 
-window.showAllTransactions = () => showInfo('Toutes mes opérations',
-  '<p>Retrouvez ici l\'historique complet de vos opérations.</p>'
-  + '<div class="info-row"><span class="label">Ce mois-ci</span><span class="value">0 opération</span></div>'
-  + '<div class="info-row"><span class="label">Mois précédent</span><span class="value">0 opération</span></div>'
-  + '<p style="margin-top:10px;color:#666;font-size:13px;">Les opérations apparaîtront ici dès la première transaction.</p>', '📋');
+window.showAllTransactions = () => window.showHistory();
 
 window.showTransactionDetail = (id) => showInfo('Détail de l\'opération',
   '<div class="info-row"><span class="label">Référence</span><span class="value">#' + id + '</span></div>'
@@ -668,11 +797,14 @@ window.showSynthese = () => showInfo('Synthèse de mon patrimoine',
   + '<div class="info-row"><span class="label">Crédits</span><span class="value">0,00 €</span></div>'
   + '<div class="info-row"><span class="label" style="font-weight:700;">Total</span><span class="value" style="font-weight:700;color:#1a7a4a;">0,00 €</span></div>', '📊');
 
-window.contactManager = () => showInfo('Contacter mon gestionnaire',
-  '<p>Votre conseiller BNP Paribas est à votre écoute.</p>'
-  + '<div class="info-row"><span class="label">Téléphone</span><span class="value">+33 1 40 40 20 00</span></div>'
-  + '<div class="info-row"><span class="label">Horaires</span><span class="value">Lun-Ven 9h-18h</span></div>'
-  + '<div class="info-row"><span class="label">Email</span><span class="value">conseiller@bnpparibas.fr</span></div>', '👤');
+window.contactManager = () => {
+  const name = document.getElementById('managerName')?.textContent || '—';
+  showInfo('Mon conseiller',
+    '<p>Votre conseiller BNP Paribas est à votre écoute.</p>'
+    + '<div class="info-row"><span class="label">Nom</span><span class="value">' + escapeHtml(name) + '</span></div>'
+    + managerContactRowsHtml()
+    + '<div class="info-row"><span class="label">Horaires</span><span class="value">Lun-Ven 9h-18h</span></div>', '👤');
+};
 
 window.activateCashback = () => showInfo('Cashback activé',
   '<p>🎉 Votre programme de cashback est désormais actif sur vos achats éligibles.</p>'
@@ -696,7 +828,11 @@ window.showChat = () => showInfo('Messagerie sécurisée',
   + '<div class="info-row"><span class="label">Nouveaux messages</span><span class="value">0</span></div>'
   + '<div class="info-row"><span class="label">Délai moyen</span><span class="value">sous 24h</span></div>', '💬');
 
-window.showPhone = () => { window.location.href = 'tel:+33140402000'; };
+window.showPhone = () => {
+  const phone = window.__currentManagerPhone || '';
+  if (phone) { window.location.href = 'tel:' + phone.replace(/\s/g,''); }
+  else showInfo('Téléphone non configuré', '<p>Votre conseiller n\'a pas encore renseigné de numéro de téléphone. Contactez-le par messagerie sécurisée.</p>', '📞');
+};
 
 window.showSecurity = () => showInfo('Sécurité de mon compte',
   '<div class="info-row"><span class="label">Authentification forte</span><span class="value" style="color:#1a7a4a;">Activée</span></div>'
@@ -706,32 +842,21 @@ window.showSecurity = () => showInfo('Sécurité de mon compte',
 
 window.showHelp = () => showInfo('Aide & Support',
   '<p>Notre équipe est disponible pour répondre à toutes vos questions.</p>'
-  + '<div class="info-row"><span class="label">Service client</span><span class="value">+33 1 40 40 20 00</span></div>'
-  + '<div class="info-row"><span class="label">Urgence carte (24/7)</span><span class="value">+33 9 69 32 30 30</span></div>'
-  + '<div class="info-row"><span class="label">Email</span><span class="value">contact@bnpparibas.fr</span></div>', '🆘');
+  + '<div class="info-row"><span class="label">Mon conseiller</span><span class="value">' + escapeHtml(document.getElementById('managerName')?.textContent || '—') + '</span></div>'
+  + managerContactRowsHtml()
+  + '<p style="margin-top:10px;color:#666;font-size:13px;">Utilisez la messagerie sécurisée pour toute demande.</p>', '🆘');
 
 window.goBack = () => navigateTo('accueil');
 
-// Balance toggle
 document.addEventListener('DOMContentLoaded', () => {
   const toggleBtn = document.getElementById('toggleBalance');
   const balanceEl = document.getElementById('mainBalance');
   let shown = false;
   if (toggleBtn && balanceEl) {
-    toggleBtn.addEventListener('click', () => {
-      shown = !shown;
-      balanceEl.classList.toggle('hidden', !shown);
-    });
+    toggleBtn.addEventListener('click', () => { shown = !shown; balanceEl.classList.toggle('hidden', !shown); });
   }
-
-  // Enter key on login
-  document.getElementById('loginPassword').addEventListener('keydown', e => {
-    if (e.key === 'Enter') doLogin();
-  });
-  document.getElementById('loginUsername').addEventListener('keydown', e => {
-    if (e.key === 'Enter') document.getElementById('loginPassword').focus();
-  });
-
+  document.getElementById('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  document.getElementById('loginUsername').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('loginPassword').focus(); });
   initAuth();
 });
 
@@ -749,6 +874,7 @@ window.openSettings = openSettings;
 window.closeSettings = closeSettings;
 window.switchAdminTab = switchAdminTab;
 window.selectUser = selectUser;
-window.adminSaveData = adminSaveData;
+window.adminSaveSection = adminSaveSection;
+window.adminCreditAccount = adminCreditAccount;
 window.adminResetPassword = adminResetPassword;
 window.adminDeleteUser = adminDeleteUser;

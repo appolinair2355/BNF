@@ -1544,3 +1544,62 @@ body.settings-locked .bottom-nav {
 .welcome-row:last-of-type { border-bottom: 0; margin-bottom: 12px; }
 .welcome-row span { color: #777; }
 .welcome-row strong { color: #111; font-weight: 600; text-align: right; }
+
+/* ========== HISTORIQUE VIREMENTS ========== */
+.history-list, .admin-transfers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 60vh;
+  overflow-y: auto;
+  margin: 8px 0 14px;
+}
+.history-item {
+  background: #f7fbf8;
+  border: 1px solid #e1ece4;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.history-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+.history-bene { font-size: 14px; }
+.history-amount { color: #c0392b; font-size: 14px; }
+.history-meta {
+  font-size: 12px;
+  color: #666;
+  margin-top: 3px;
+}
+
+/* ========== ADMIN — boutons par catégorie ========== */
+.admin-save-btn--cat {
+  margin-top: 8px;
+  width: 100%;
+  padding: 11px 14px;
+  background: #1a7a4a;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.admin-save-btn--cat:hover { background: #156439; }
+
+.admin-subgroup {
+  border-left: 3px solid #1a7a4a;
+  padding: 6px 10px;
+  margin: 8px 0;
+  background: #fafdfb;
+  border-radius: 4px;
+}
+.admin-subgroup strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #1a7a4a;
+  font-size: 13px;
+}
