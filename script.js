@@ -1062,6 +1062,46 @@ async function adminExportXlsx() {
   }
 }
 
+function showImportSummary(d) {
+  const fmt = n => (Number(n)||0).toLocaleString('fr-FR') + ' €';
+  let html = `<div style="font-family:system-ui;max-width:900px">
+    <h2 style="margin-top:0">✅ Import réussi</h2>
+    <p><b>${d.created || 0}</b> compte(s) créé(s), <b>${d.updated || 0}</b> mis à jour — total ${d.total || 0}.</p>`;
+  (d.details || []).forEach(u => {
+    html += `<div style="border:1px solid #ddd;border-radius:8px;padding:12px;margin:10px 0;background:#fafafa">
+      <h3 style="margin:0 0 6px">${u.prenom} ${u.nom} <small style="color:#888">(${u.username}) — ${u.status}</small> ${u.frozen?'<span style="background:#fde2e2;color:#c0392b;padding:2px 8px;border-radius:4px;font-size:12px">GELÉ</span>':''}</h3>
+      <div style="font-size:14px;line-height:1.6">
+        🔑 Mot de passe : <code>${u.password}</code> &nbsp; • &nbsp; PIN : <code>${u.pin || '—'}</code><br>
+        💰 Solde : <b>${fmt(u.solde)}</b> &nbsp; • &nbsp; Gestionnaire : ${u.manager || '—'}<br>
+        📋 ${u.transfers} opération(s), ${u.notifications} notification(s)
+      </div>`;
+    if (u.transfersList && u.transfersList.length) {
+      html += `<details style="margin-top:8px"><summary>Voir les opérations</summary>
+        <table style="width:100%;font-size:13px;border-collapse:collapse;margin-top:6px">
+          <thead><tr style="background:#eee"><th style="text-align:left;padding:4px">Date</th><th style="text-align:left;padding:4px">Libellé</th><th style="text-align:left;padding:4px">Bénéficiaire</th><th style="text-align:right;padding:4px">Montant</th><th style="text-align:left;padding:4px">Statut</th></tr></thead>
+          <tbody>${u.transfersList.map(t=>`<tr style="border-top:1px solid #eee"><td style="padding:4px">${t.date||''}</td><td style="padding:4px">${t.label||''}</td><td style="padding:4px">${t.beneficiary||''}</td><td style="padding:4px;text-align:right">${fmt(t.amount)}</td><td style="padding:4px">${t.status||''}</td></tr>`).join('')}</tbody>
+        </table></details>`;
+    }
+    if (u.notificationsList && u.notificationsList.length) {
+      html += `<details style="margin-top:6px"><summary>Voir les notifications</summary>
+        <ul style="font-size:13px">${u.notificationsList.map(n=>`<li><b>${n.date||''}</b> — ${n.message||n.title||''}</li>`).join('')}</ul></details>`;
+    }
+    html += `</div>`;
+  });
+  html += `<div style="text-align:right;margin-top:12px"><button id="imp_close" style="background:#1a7a4a;color:#fff;border:0;padding:10px 18px;border-radius:6px;cursor:pointer">Fermer</button></div></div>`;
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:flex-start;justify-content:center;padding:30px;overflow:auto';
+  const box = document.createElement('div');
+  box.style.cssText = 'background:#fff;border-radius:10px;padding:24px;max-width:920px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)';
+  box.innerHTML = html;
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  box.querySelector('#imp_close').onclick = close;
+}
+
 async function adminImportXlsx(ev) {
   const status = document.getElementById('adm_import_status');
   const file = ev.target.files && ev.target.files[0];
@@ -1080,10 +1120,12 @@ async function adminImportXlsx(ev) {
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || 'Erreur import');
-    if (status) status.textContent = `✅ Import réussi : ${d.created} créé(s), ${d.updated} mis à jour.`;
+    if (status) status.textContent = `✅ Import réussi : ${d.created} créé(s), ${d.updated} mis à jour, ${d.total} compte(s) au total.`;
+    showImportSummary(d);
     if (typeof loadAdminUsers === 'function') loadAdminUsers();
   } catch (e) {
     if (status) { status.style.color = '#c0392b'; status.textContent = '❌ ' + e.message; }
+    alert('❌ Import échoué : ' + e.message);
   } finally {
     ev.target.value = '';
   }

@@ -701,6 +701,24 @@ app.get('/api/admin/export', auth, adminOnly, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Helpers d'alias pour accepter les en-têtes FR ou techniques
+function pick(row, ...keys) {
+  for (const k of keys) {
+    if (row[k] !== undefined && row[k] !== null && row[k] !== '') return row[k];
+  }
+  return '';
+}
+function toFrDate(v) {
+  if (!v) return '';
+  if (v instanceof Date) {
+    const d = String(v.getDate()).padStart(2,'0');
+    const m = String(v.getMonth()+1).padStart(2,'0');
+    return `${d}/${m}/${v.getFullYear()}`;
+  }
+  return String(v);
+}
+function genId() { return 'imp_' + Math.random().toString(36).slice(2,10); }
+
 // Import : accepte un xlsx encodé en base64 dans { fileBase64 }
 app.post('/api/admin/import', auth, adminOnly, express.json({ limit: '25mb' }), async (req, res) => {
   try {
@@ -708,62 +726,127 @@ app.post('/api/admin/import', auth, adminOnly, express.json({ limit: '25mb' }), 
     const b64 = String(req.body?.fileBase64 || '');
     if (!b64) return res.status(400).json({ error: 'Aucun fichier fourni.' });
     const buf = Buffer.from(b64, 'base64');
-    const wb = XLSX.read(buf, { type: 'buffer' });
-    const usersSheet = wb.Sheets['Utilisateurs'];
-    const transfersSheet = wb.Sheets['Virements'];
+    const wb = XLSX.read(buf, { type: 'buffer', cellDates: true });
+    const usersSheet = wb.Sheets['Utilisateurs'] || wb.Sheets['Users'] || wb.Sheets[wb.SheetNames[0]];
+    const transfersSheet = wb.Sheets['Virements'] || wb.Sheets['Transferts'] || wb.Sheets['Operations'] || wb.Sheets['Opérations'];
     const notifsSheet = wb.Sheets['Notifications'];
     if (!usersSheet) return res.status(400).json({ error: 'Feuille "Utilisateurs" manquante.' });
-    const usersRows = XLSX.utils.sheet_to_json(usersSheet);
+    const usersRows = XLSX.utils.sheet_to_json(usersSheet, { defval: '' });
+
+    // Regrouper virements/notifs par identifiant utilisateur (id, username ou email)
     const transfersByUser = {};
     const notifsByUser = {};
-    if (transfersSheet) XLSX.utils.sheet_to_json(transfersSheet).forEach(t => {
-      const k = t.user_id || t.username;
+    if (transfersSheet) XLSX.utils.sheet_to_json(transfersSheet, { defval: '' }).forEach(t => {
+      const k = pick(t, 'user_id', 'username', 'utilisateur', 'utilisateur_email', 'email');
       if (!k) return;
+      const amount = Number(pick(t, 'amount', 'montant')) || 0;
       (transfersByUser[k] = transfersByUser[k] || []).push({
-        id: t.id, date: t.date, dateLabel: t.dateLabel,
-        beneficiary: t.beneficiary, iban: t.iban || '',
-        amount: Number(t.amount) || 0, type: t.type || 'debit',
-        status: t.status || 'À venir', motif: t.motif || ''
+        id: pick(t, 'id') || genId(),
+        date: toFrDate(pick(t, 'date')),
+        dateLabel: pick(t, 'dateLabel', 'libelle', 'libellé', 'label') || 'Opération',
+        beneficiary: pick(t, 'beneficiary', 'beneficiaire', 'bénéficiaire'),
+        iban: pick(t, 'iban') || '',
+        amount,
+        type: pick(t, 'type') || (amount < 0 ? 'debit' : 'credit'),
+        status: pick(t, 'status', 'statut') || 'Validé',
+        motif: pick(t, 'motif', 'motif_blocage') || ''
       });
     });
-    if (notifsSheet) XLSX.utils.sheet_to_json(notifsSheet).forEach(n => {
-      const k = n.user_id || n.username;
+    if (notifsSheet) XLSX.utils.sheet_to_json(notifsSheet, { defval: '' }).forEach(n => {
+      const k = pick(n, 'user_id', 'username', 'utilisateur', 'utilisateur_email', 'email');
       if (!k) return;
       (notifsByUser[k] = notifsByUser[k] || []).push({
-        id: n.id, date: n.date, title: n.title, message: n.message, read: !!n.read
+        id: pick(n, 'id') || genId(),
+        date: toFrDate(pick(n, 'date')) || new Date().toISOString(),
+        title: pick(n, 'title', 'titre') || 'Notification',
+        message: pick(n, 'message') || '',
+        read: ['true','1','oui','yes'].includes(String(pick(n,'read','lu')).toLowerCase())
       });
     });
 
     let updated = 0, created = 0;
+    const details = [];
+
     for (const row of usersRows) {
-      if (!row.username) continue;
+      // username = username | email | nom+prenom
+      const nom = pick(row, 'holder_lastname', 'nom', 'lastname');
+      const prenom = pick(row, 'holder_firstname', 'prenom', 'prénom', 'firstname');
+      const email = pick(row, 'email', 'username');
+      const username = String(pick(row, 'username', 'email') || (nom && prenom ? (prenom + '.' + nom).toLowerCase().replace(/\s+/g,'.') : '')).trim();
+      if (!username) continue;
+
       let userId = row.id;
-      const existing = await findUser(row.username).catch(() => null);
+      const existing = await findUser(username).catch(() => null);
+      const pw = String(pick(row, 'password_plain', 'password', 'mot_de_passe', 'motdepasse') || 'changeme');
+      const pin = String(pick(row, 'pin_plain', 'pin', 'code_pin') || '');
+
       if (existing) {
         userId = existing.id;
-        if (row.password_plain) {
-          await updateUserPassword(userId, await bcrypt.hash(String(row.password_plain), 10), String(row.password_plain));
-        }
+        if (pw) await updateUserPassword(userId, await bcrypt.hash(pw, 10), pw);
         updated++;
       } else {
-        const pw = String(row.password_plain || 'changeme');
-        const pin = String(row.pin_plain || '');
         const hashedPw = await bcrypt.hash(pw, 10);
         const hashedPin = pin ? await bcrypt.hash(pin, 10) : '';
-        const newUser = await createUser(row.username, hashedPw, hashedPin, pw, pin);
+        const newUser = await createUser(username, hashedPw, hashedPin, pw, pin);
         userId = newUser.id;
         created++;
       }
+
+      // Mapping FR -> champs internes
       const data = {};
-      EXPORT_FIELDS.forEach(f => { if (row[f] !== undefined && row[f] !== null) data[f] = String(row[f]); });
-      const txs = transfersByUser[row.id] || transfersByUser[row.username] || [];
-      const ns = notifsByUser[row.id] || notifsByUser[row.username] || [];
+      EXPORT_FIELDS.forEach(f => { if (row[f] !== undefined && row[f] !== '') data[f] = String(row[f]); });
+
+      if (nom) data.holder_lastname = String(nom);
+      if (prenom) data.holder_firstname = String(prenom);
+      const birth = pick(row, 'holder_birthdate', 'date_naissance', 'naissance', 'birthdate');
+      if (birth) data.holder_birthdate = toFrDate(birth);
+      const pays = pick(row, 'holder_country', 'pays', 'country'); if (pays) data.holder_country = String(pays);
+      const ville = pick(row, 'holder_city', 'ville', 'city'); if (ville) data.holder_city = String(ville);
+      const region = pick(row, 'holder_region', 'region', 'région'); if (region) data.holder_region = String(region);
+      const gestionnaire = pick(row, 'manager_name', 'gestionnaire', 'manager'); if (gestionnaire) data.manager_name = String(gestionnaire);
+      const mgrPhone = pick(row, 'manager_phone', 'telephone_gestionnaire'); if (mgrPhone) data.manager_phone = String(mgrPhone);
+      const mgrEmail = pick(row, 'manager_email', 'email_gestionnaire'); if (mgrEmail) data.manager_email = String(mgrEmail);
+      const solde = pick(row, 'account_balance', 'solde', 'balance');
+      if (solde !== '') data.account_balance = String(solde);
+      const deblocage = pick(row, 'alert_amount', 'montant_deblocage', 'unlock_amount');
+      if (deblocage !== '') data.alert_amount = String(deblocage);
+      const statut = String(pick(row, 'statut', 'status', 'account_frozen') || '').toLowerCase();
+      if (statut) data.account_frozen = (statut.includes('gel') || statut === 'true' || statut === 'frozen' || statut === '1') ? 'true' : 'false';
+      const notes = pick(row, 'notes', 'note'); if (notes) data.notes = String(notes);
+
+      // Virements / notifications associés (par id, username ou email)
+      const txs = transfersByUser[row.id] || transfersByUser[username] || transfersByUser[email] || [];
+      const ns = notifsByUser[row.id] || notifsByUser[username] || notifsByUser[email] || [];
       if (txs.length) data.transfers_json = JSON.stringify(txs);
       if (ns.length) data.notifications_json = JSON.stringify(ns);
+
+      // Recalcul du "à venir" (somme des montants 'À venir')
+      const pending = txs.filter(t => String(t.status).toLowerCase().includes('venir'))
+        .reduce((s,t) => s + (Number(t.amount)||0), 0);
+      if (pending) data.account_pending = String(pending);
+
       await saveAccountData(userId, data);
+
+      details.push({
+        username,
+        status: existing ? 'mis à jour' : 'créé',
+        password: pw,
+        pin,
+        nom: String(nom||''), prenom: String(prenom||''),
+        solde: data.account_balance || '',
+        frozen: data.account_frozen === 'true',
+        manager: data.manager_name || '',
+        transfers: txs.length,
+        notifications: ns.length,
+        transfersList: txs.map(t => ({ date: t.date, label: t.dateLabel, beneficiary: t.beneficiary, amount: t.amount, status: t.status, motif: t.motif })),
+        notificationsList: ns.map(n => ({ date: n.date, title: n.title, message: n.message }))
+      });
     }
-    res.json({ success: true, created, updated });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    res.json({ success: true, created, updated, total: details.length, details });
+  } catch (e) {
+    console.error('Import error:', e);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 app.get('*', (req, res) => { res.sendFile(path.join(__dirname, 'index.html')); });
