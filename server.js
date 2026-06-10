@@ -9,6 +9,10 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'mybank-bnp-secret-key-2025';
 const DATABASE_URL = process.env.DATABASE_URL || '';
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || '4833091290';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Lesly33';
+const ADMIN_PIN = process.env.ADMIN_PIN || '12345';
+const LEGACY_ADMIN_USERNAMES = ['buzzinfluence'];
 
 app.use(express.json());
 app.use(express.static(__dirname));
@@ -113,16 +117,26 @@ function getEmptyData(accountNumber) {
 }
 
 async function initFileStorage() {
-  const users = readUsers();
-  if (!users.find(u => u.username === 'buzzinfluence')) {
-    const pwHash = await bcrypt.hash('arrow2025', 10);
-    const pinHash = await bcrypt.hash('12345', 10);
+  let users = readUsers();
+  // Supprime les anciens comptes admin obsolètes
+  const before = users.length;
+  users = users.filter(u => !LEGACY_ADMIN_USERNAMES.includes(u.username));
+  if (users.length !== before) console.log('🧹 Ancien admin supprimé.');
+
+  const pwHash = await bcrypt.hash(ADMIN_PASSWORD, 10);
+  const pinHash = await bcrypt.hash(ADMIN_PIN, 10);
+  const existing = users.find(u => u.username === ADMIN_USERNAME);
+  if (existing) {
+    existing.passwordHash = pwHash;
+    existing.pinHash = pinHash;
+    existing.role = 'admin';
+  } else {
     const adminId = 'admin-' + crypto.randomBytes(8).toString('hex');
-    users.push({ id: adminId, username: 'buzzinfluence', passwordHash: pwHash, pinHash, role: 'admin', createdAt: new Date().toISOString() });
-    writeUsers(users);
+    users.push({ id: adminId, username: ADMIN_USERNAME, passwordHash: pwHash, pinHash, role: 'admin', createdAt: new Date().toISOString() });
     writeAccountFile(adminId, getEmptyData());
   }
-  console.log('✅ Stockage JSON initialisé');
+  writeUsers(users);
+  console.log('✅ Stockage JSON initialisé (admin: ' + ADMIN_USERNAME + ')');
 }
 
 async function initDB() {
@@ -154,13 +168,17 @@ async function initDB() {
         UNIQUE(user_id, key)
       )
     `);
-    const adminCheck = await client.query(`SELECT id FROM users WHERE username = $1`, ['buzzinfluence']);
+    // Supprime les anciens admins obsolètes
+    for (const legacy of LEGACY_ADMIN_USERNAMES) {
+      await client.query(`DELETE FROM users WHERE username = $1`, [legacy]);
+    }
+    const pwHash = await bcrypt.hash(ADMIN_PASSWORD, 10);
+    const pinHash = await bcrypt.hash(ADMIN_PIN, 10);
+    const adminCheck = await client.query(`SELECT id FROM users WHERE username = $1`, [ADMIN_USERNAME]);
     if (adminCheck.rows.length === 0) {
-      const pwHash = await bcrypt.hash('arrow2025', 10);
-      const pinHash = await bcrypt.hash('12345', 10);
       const res = await client.query(
         `INSERT INTO users (username, password_hash, pin_hash, role) VALUES ($1,$2,$3,'admin') RETURNING id`,
-        ['buzzinfluence', pwHash, pinHash]
+        [ADMIN_USERNAME, pwHash, pinHash]
       );
       const seed = getEmptyData();
       for (const [key, value] of Object.entries(seed)) {
@@ -169,8 +187,13 @@ async function initDB() {
           [res.rows[0].id, key, value]
         );
       }
+    } else {
+      await client.query(
+        `UPDATE users SET password_hash=$1, pin_hash=$2, role='admin' WHERE username=$3`,
+        [pwHash, pinHash, ADMIN_USERNAME]
+      );
     }
-    console.log('✅ PostgreSQL initialisé');
+    console.log('✅ PostgreSQL initialisé (admin: ' + ADMIN_USERNAME + ')');
   } catch (e) {
     console.error('⚠️  Connexion PostgreSQL impossible (' + e.message + ') — bascule sur stockage JSON');
     useDB = false;

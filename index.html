@@ -5,19 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>BNP Paribas — Accueil</title>
   <link rel="stylesheet" href="style.css" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><defs><linearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'><stop offset='0%25' stop-color='%23009e4f'/><stop offset='100%25' stop-color='%23007a3d'/></linearGradient></defs><rect width='200' height='200' rx='36' fill='url(%23g)'/><path d='M 128 42 L 145 32 L 138 48 L 158 42 L 144 58 L 132 52 Z' fill='white'/><path d='M 52 78 L 70 68 L 62 85 L 82 78 L 68 95 L 56 88 Z' fill='white'/><path d='M 42 122 L 58 112 L 52 130 L 72 122 L 58 140 L 46 132 Z' fill='white'/><path d='M 92 132 L 105 124 L 100 136 L 115 132 L 105 144 L 96 140 Z' fill='white'/><text x='100' y='168' font-family='Arial' font-size='24' font-weight='bold' fill='white' text-anchor='middle'>BNP</text><text x='100' y='188' font-family='Arial' font-size='16' font-weight='bold' fill='white' text-anchor='middle'>PARIBAS</text></svg>" />
+  <meta name="theme-color" content="#007a3d" />
 </head>
 <body>
-
-  <!-- ========== BANDEAU TÉLÉPHONE SERVICE CLIENT ========== -->
-  <div id="topPhoneBar" style="position:fixed;top:0;left:0;right:0;z-index:99999;background:linear-gradient(90deg,#007a3d,#009e4f);color:#fff;text-align:center;font-family:Arial,sans-serif;font-size:14px;font-weight:600;padding:8px 12px;box-shadow:0 2px 6px rgba(0,0,0,.15);letter-spacing:.3px;">
-    <a href="tel:+33140142000" style="color:#fff;text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z"/></svg>
-      Service client : +33 1 40 14 20 00
-    </a>
-  </div>
-  <style>body{padding-top:38px !important;} .auth-overlay{padding-top:38px;}</style>
-
-
 
   <!-- ========== AUTH OVERLAY ========== -->
   <div id="authOverlay" class="auth-overlay">
@@ -122,21 +113,8 @@
       </div>
     </div>
 
-    <!-- MODAL DE BIENVENUE APRÈS INSCRIPTION -->
-    <div id="welcomeModal" class="welcome-modal" style="display:none;">
-      <div class="welcome-card">
-        <div class="welcome-icon">
-          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-        </div>
-        <h2 class="welcome-title">Bienvenue <span id="welcomeName">—</span></h2>
-        <p class="welcome-sub">Votre compte BNP Paribas a été créé avec succès.</p>
-        <div class="welcome-row"><span>Titulaire</span><strong id="welcomeHolder">—</strong></div>
-        <div class="welcome-row"><span>N° de compte</span><strong id="welcomeAccount">—</strong></div>
-        <div class="welcome-row"><span>Solde initial</span><strong id="welcomeBalance">0,00 €</strong></div>
-        <div class="welcome-row"><span>Date d'ouverture</span><strong id="welcomeDate">—</strong></div>
-        <button class="auth-btn-primary" onclick="closeWelcomeModal()">Accéder à mon espace</button>
-      </div>
-    </div>
+    <!-- MODAL DE BIENVENUE — déplacée hors de #authOverlay plus bas dans le DOM -->
+
 
     <!-- ÉCRAN CONFIGURATION PIN (inscription) -->
     <div id="screenPinSetup" class="auth-screen">
@@ -729,6 +707,35 @@
         <p class="notif-text">Aucune opération bloquée.</p>
       </div>
       <button class="modal-close" onclick="closeModal('notifModal')">Fermer</button>
+    </div>
+  </div>
+
+  <!-- ========== MODAL DE BIENVENUE (hors auth overlay) ========== -->
+  <div id="welcomeModal" class="welcome-modal" style="display:none;">
+    <div class="welcome-card">
+      <div class="welcome-icon">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#1a7a4a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      </div>
+      <h2 class="welcome-title">Bienvenue <span id="welcomeName">—</span> 🎉</h2>
+      <p class="welcome-sub">Votre compte BNP Paribas a été créé avec succès.</p>
+      <div class="welcome-row"><span>Titulaire</span><strong id="welcomeHolder">—</strong></div>
+      <div class="welcome-row"><span>N° de compte</span><strong id="welcomeAccount">—</strong></div>
+      <div class="welcome-row"><span>Solde initial</span><strong id="welcomeBalance">0,00 €</strong></div>
+      <div class="welcome-row"><span>Date d'ouverture</span><strong id="welcomeDate">—</strong></div>
+      <button class="auth-btn-primary" onclick="closeWelcomeModal()">Accéder à mon espace</button>
+    </div>
+  </div>
+
+  <!-- ========== MODAL INFO GÉNÉRIQUE ========== -->
+  <div class="modal-overlay" id="infoModal">
+    <div class="modal">
+      <div class="modal-handle" onclick="closeModal('infoModal')"></div>
+      <div style="text-align:center;margin:6px 0 14px;">
+        <div id="infoModalIcon" style="font-size:42px;line-height:1;">✨</div>
+      </div>
+      <h3 id="infoModalTitle" style="text-align:center;">Information</h3>
+      <div id="infoModalBody" style="color:#333;font-size:14px;line-height:1.55;padding:4px 2px 12px;"></div>
+      <button class="btn-primary" onclick="closeModal('infoModal')">J'ai compris</button>
     </div>
   </div>
 

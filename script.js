@@ -618,24 +618,98 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
   });
 });
 
+// ===== Fenêtre d'information stylée (remplace les alert) =====
+function showInfo(title, bodyHtml, icon) {
+  document.getElementById('infoModalIcon').textContent = icon || '✨';
+  document.getElementById('infoModalTitle').textContent = title || 'Information';
+  document.getElementById('infoModalBody').innerHTML = bodyHtml || '';
+  openModal('infoModal');
+}
+window.showInfo = showInfo;
+
 window.showVirement = () => openModal('virementModal');
-window.showWero = () => alert('Wero : Fonctionnalité en cours de développement');
 window.showRIB = () => openModal('ribModal');
 window.showPlafonds = () => openModal('plafondsModal');
 window.showNotifications = () => openModal('notifModal');
-window.showAllAccounts = () => alert('Tous les comptes : Fonctionnalité en cours de développement');
-window.showInsurance = () => alert('Assurances : Fonctionnalité en cours de développement');
-window.showAllTransactions = () => alert('Toutes les opérations : Fonctionnalité en cours de développement');
-window.showTransactionDetail = (id) => alert('Détail transaction ' + id + ' : Fonctionnalité en cours de développement');
-window.showSynthese = () => alert('Synthèse complète : Fonctionnalité en cours de développement');
-window.contactManager = () => alert('Contact gestionnaire : Fonctionnalité en cours de développement');
-window.activateCashback = () => alert('Cashback activé !');
-window.showOpportunities = () => alert('Opportunités : Fonctionnalité en cours de développement');
-window.showImmobilier = () => alert('Crédit immobilier : Fonctionnalité en cours de développement');
-window.showChat = () => alert('Messagerie : Fonctionnalité en cours de développement');
+
+window.showWero = () => showInfo('Wero — Paiement entre amis',
+  '<p>Envoyez et recevez de l\'argent en quelques secondes avec vos contacts Wero, partout en Europe.</p>'
+  + '<div class="info-row"><span class="label">Limite par envoi</span><span class="value">1 000 €</span></div>'
+  + '<div class="info-row"><span class="label">Frais</span><span class="value" style="color:#1a7a4a;">Gratuit</span></div>'
+  + '<p style="margin-top:10px;color:#666;font-size:13px;">Activez Wero depuis votre application mobile BNP Paribas.</p>', '💸');
+
+window.showAllAccounts = () => showInfo('Mes comptes',
+  '<div class="info-row"><span class="label">Compte de chèques</span><span class="value">Actif</span></div>'
+  + '<div class="info-row"><span class="label">Livret A</span><span class="value">Non souscrit</span></div>'
+  + '<div class="info-row"><span class="label">PEL</span><span class="value">Non souscrit</span></div>'
+  + '<div class="info-row"><span class="label">Assurance-vie</span><span class="value">Non souscrit</span></div>'
+  + '<p style="margin-top:10px;color:#666;font-size:13px;">Ouvrez un nouveau produit en agence ou via votre conseiller.</p>', '🏦');
+
+window.showInsurance = () => showInfo('Mes assurances',
+  '<div class="info-row"><span class="label">Assurance habitation</span><span class="value">Non souscrit</span></div>'
+  + '<div class="info-row"><span class="label">Assurance auto</span><span class="value">Non souscrit</span></div>'
+  + '<div class="info-row"><span class="label">Assurance santé</span><span class="value">Non souscrit</span></div>'
+  + '<p style="margin-top:10px;color:#666;font-size:13px;">Demandez un devis personnalisé auprès de votre conseiller.</p>', '🛡️');
+
+window.showAllTransactions = () => showInfo('Toutes mes opérations',
+  '<p>Retrouvez ici l\'historique complet de vos opérations.</p>'
+  + '<div class="info-row"><span class="label">Ce mois-ci</span><span class="value">0 opération</span></div>'
+  + '<div class="info-row"><span class="label">Mois précédent</span><span class="value">0 opération</span></div>'
+  + '<p style="margin-top:10px;color:#666;font-size:13px;">Les opérations apparaîtront ici dès la première transaction.</p>', '📋');
+
+window.showTransactionDetail = (id) => showInfo('Détail de l\'opération',
+  '<div class="info-row"><span class="label">Référence</span><span class="value">#' + id + '</span></div>'
+  + '<div class="info-row"><span class="label">Statut</span><span class="value">En traitement</span></div>'
+  + '<p style="margin-top:10px;color:#666;font-size:13px;">Le détail complet sera disponible après confirmation bancaire.</p>', '🧾');
+
+window.showSynthese = () => showInfo('Synthèse de mon patrimoine',
+  '<div class="info-row"><span class="label">Comptes courants</span><span class="value">0,00 €</span></div>'
+  + '<div class="info-row"><span class="label">Épargne</span><span class="value">0,00 €</span></div>'
+  + '<div class="info-row"><span class="label">Crédits</span><span class="value">0,00 €</span></div>'
+  + '<div class="info-row"><span class="label" style="font-weight:700;">Total</span><span class="value" style="font-weight:700;color:#1a7a4a;">0,00 €</span></div>', '📊');
+
+window.contactManager = () => showInfo('Contacter mon gestionnaire',
+  '<p>Votre conseiller BNP Paribas est à votre écoute.</p>'
+  + '<div class="info-row"><span class="label">Téléphone</span><span class="value">+33 1 40 40 20 00</span></div>'
+  + '<div class="info-row"><span class="label">Horaires</span><span class="value">Lun-Ven 9h-18h</span></div>'
+  + '<div class="info-row"><span class="label">Email</span><span class="value">conseiller@bnpparibas.fr</span></div>', '👤');
+
+window.activateCashback = () => showInfo('Cashback activé',
+  '<p>🎉 Votre programme de cashback est désormais actif sur vos achats éligibles.</p>'
+  + '<div class="info-row"><span class="label">Taux moyen</span><span class="value" style="color:#1a7a4a;">jusqu\'à 5%</span></div>'
+  + '<div class="info-row"><span class="label">Cumul ce mois</span><span class="value">0,00 €</span></div>', '💰');
+
+window.showOpportunities = () => showInfo('Opportunités du moment',
+  '<p>Découvrez nos offres exclusives :</p>'
+  + '<div class="info-row"><span class="label">Livret d\'épargne</span><span class="value" style="color:#1a7a4a;">3% brut</span></div>'
+  + '<div class="info-row"><span class="label">PEL nouvelle gén.</span><span class="value" style="color:#1a7a4a;">2,25%</span></div>'
+  + '<div class="info-row"><span class="label">Prêt personnel</span><span class="value">dès 4,90% TAEG</span></div>', '✨');
+
+window.showImmobilier = () => showInfo('Crédit immobilier',
+  '<p>Concrétisez votre projet immobilier avec BNP Paribas.</p>'
+  + '<div class="info-row"><span class="label">Taux dès</span><span class="value" style="color:#1a7a4a;">3,45% TAEG</span></div>'
+  + '<div class="info-row"><span class="label">Durée</span><span class="value">jusqu\'à 25 ans</span></div>'
+  + '<p style="margin-top:10px;color:#666;font-size:13px;">Une simulation détaillée vous sera envoyée par votre conseiller.</p>', '🏠');
+
+window.showChat = () => showInfo('Messagerie sécurisée',
+  '<p>Échangez en toute confidentialité avec votre conseiller.</p>'
+  + '<div class="info-row"><span class="label">Nouveaux messages</span><span class="value">0</span></div>'
+  + '<div class="info-row"><span class="label">Délai moyen</span><span class="value">sous 24h</span></div>', '💬');
+
 window.showPhone = () => { window.location.href = 'tel:+33140402000'; };
-window.showSecurity = () => alert('Sécurité : Fonctionnalité en cours de développement');
-window.showHelp = () => alert('Aide & Support : +33 1 40 40 20 00');
+
+window.showSecurity = () => showInfo('Sécurité de mon compte',
+  '<div class="info-row"><span class="label">Authentification forte</span><span class="value" style="color:#1a7a4a;">Activée</span></div>'
+  + '<div class="info-row"><span class="label">Code PIN</span><span class="value" style="color:#1a7a4a;">Configuré</span></div>'
+  + '<div class="info-row"><span class="label">Dernière connexion</span><span class="value">' + new Date().toLocaleString('fr-FR') + '</span></div>'
+  + '<p style="margin-top:10px;color:#666;font-size:13px;">Ne communiquez jamais votre code PIN ou vos identifiants.</p>', '🔒');
+
+window.showHelp = () => showInfo('Aide & Support',
+  '<p>Notre équipe est disponible pour répondre à toutes vos questions.</p>'
+  + '<div class="info-row"><span class="label">Service client</span><span class="value">+33 1 40 40 20 00</span></div>'
+  + '<div class="info-row"><span class="label">Urgence carte (24/7)</span><span class="value">+33 9 69 32 30 30</span></div>'
+  + '<div class="info-row"><span class="label">Email</span><span class="value">contact@bnpparibas.fr</span></div>', '🆘');
+
 window.goBack = () => navigateTo('accueil');
 
 // Balance toggle
