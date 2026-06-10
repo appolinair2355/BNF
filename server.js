@@ -15,16 +15,29 @@ const DATABASE_URL = process.env.DATABASE_URL || RENDER_DB_URL;
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// ========== STOCKAGE : PostgreSQL si DATABASE_URL, sinon fichier (dev local) ==========
+// ========== STOCKAGE : PostgreSQL si DATABASE_URL, sinon fichier (fallback JSON) ==========
 let useDB = !!DATABASE_URL;
 let pool = null;
 
 if (useDB) {
-  const { Pool } = require('pg');
-  pool = new Pool({
-    connectionString: DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
-  });
+  try {
+    const { Pool } = require('pg');
+    pool = new Pool({
+      connectionString: DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      connectionTimeoutMillis: 8000,
+      idleTimeoutMillis: 30000,
+      max: 5
+    });
+    // Empêche le crash du serveur si la connexion PG est coupée (Render free tier)
+    pool.on('error', (err) => {
+      console.error('⚠️  Erreur pool PG (ignorée) :', err.message);
+    });
+  } catch (e) {
+    console.error('⚠️  Module pg indisponible, bascule sur stockage JSON :', e.message);
+    useDB = false;
+    pool = null;
+  }
 }
 
 const DATA_DIR = path.join(__dirname, 'data');
@@ -123,23 +136,28 @@ function getEmptyData(username) {
 }
 
 // ========== INIT DB ==========
+async function initFileStorage() {
+  let users = readUsers();
+  if (!users.find(u => u.username === 'buzzinfluence')) {
+    const pwHash = await bcrypt.hash('arrow2025', 10);
+    const pinHash = await bcrypt.hash('12345', 10);
+    const adminId = 'admin-' + Date.now();
+    users.push({ id: adminId, username: 'buzzinfluence', passwordHash: pwHash, pinHash, role: 'admin', createdAt: new Date().toISOString() });
+    writeUsers(users);
+    writeAccountFile(adminId, getDefaultData());
+  }
+  console.log('✅ Stockage fichier JSON initialisé');
+}
+
 async function initDB() {
   if (!useDB) {
-    let users = readUsers();
-    if (!users.find(u => u.username === 'buzzinfluence')) {
-      const pwHash = await bcrypt.hash('arrow2025', 10);
-      const pinHash = await bcrypt.hash('12345', 10);
-      const adminId = 'admin-' + Date.now();
-      users.push({ id: adminId, username: 'buzzinfluence', passwordHash: pwHash, pinHash, role: 'admin', createdAt: new Date().toISOString() });
-      writeUsers(users);
-      writeAccountFile(adminId, getDefaultData());
-    }
-    console.log('Stockage fichier initialisé');
+    await initFileStorage();
     return;
   }
 
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -177,8 +195,16 @@ async function initDB() {
         );
       }
     }
-    console.log('PostgreSQL initialisé (Render)');
-  } finally { client.release(); }
+    console.log('✅ PostgreSQL initialisé (Render)');
+  } catch (e) {
+    console.error('⚠️  Connexion PostgreSQL impossible (' + e.message + ') — bascule sur stockage JSON');
+    useDB = false;
+    try { if (pool) await pool.end(); } catch {}
+    pool = null;
+    await initFileStorage();
+  } finally {
+    if (client) { try { client.release(); } catch {} }
+  }
 }
 
 // ========== USER CRUD ==========
