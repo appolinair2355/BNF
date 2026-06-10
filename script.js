@@ -386,6 +386,9 @@ function applyData(data) {
   setText('accountDate', accountDate);
   setText('mainBalance', money(balance) + ' €');
   setText('accountPending', money(pending));
+  // Mirror sous "À venir" : le solde affiché correspond exactement au pending
+  setText('accountPendingBalanceVal', money(pending));
+  setDisplay('accountPendingBalance', pending > 0);
   setDisplay('frozenBadge', frozen);
   setDisplay('alertBanner', frozen);
 
@@ -1033,3 +1036,53 @@ window.adminSaveSection = adminSaveSection;
 window.adminCreditAccount = adminCreditAccount;
 window.adminResetPassword = adminResetPassword;
 window.adminDeleteUser = adminDeleteUser;
+
+// ========== IMPORT / EXPORT EXCEL (admin) ==========
+async function adminExportXlsx() {
+  const status = document.getElementById('adm_import_status');
+  if (status) { status.style.color = '#1a7a4a'; status.textContent = 'Préparation de l\'export…'; }
+  try {
+    const r = await fetch('/api/admin/export', { headers: getAuthHeaders() });
+    if (!r.ok) { const d = await r.json().catch(()=>({})); throw new Error(d.error || 'Erreur export'); }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'mybank-export-' + new Date().toISOString().slice(0,10) + '.xlsx';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    if (status) status.textContent = '✅ Export téléchargé.';
+  } catch (e) {
+    if (status) { status.style.color = '#c0392b'; status.textContent = '❌ ' + e.message; }
+  }
+}
+
+async function adminImportXlsx(ev) {
+  const status = document.getElementById('adm_import_status');
+  const file = ev.target.files && ev.target.files[0];
+  if (!file) return;
+  if (status) { status.style.color = '#1a7a4a'; status.textContent = 'Import en cours…'; }
+  try {
+    const buf = await file.arrayBuffer();
+    let bin = '';
+    const bytes = new Uint8Array(buf);
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    const fileBase64 = btoa(bin);
+    const r = await fetch('/api/admin/import', {
+      method: 'POST',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileBase64 })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Erreur import');
+    if (status) status.textContent = `✅ Import réussi : ${d.created} créé(s), ${d.updated} mis à jour.`;
+    if (typeof loadAdminUsers === 'function') loadAdminUsers();
+  } catch (e) {
+    if (status) { status.style.color = '#c0392b'; status.textContent = '❌ ' + e.message; }
+  } finally {
+    ev.target.value = '';
+  }
+}
+
+window.adminExportXlsx = adminExportXlsx;
+window.adminImportXlsx = adminImportXlsx;

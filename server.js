@@ -450,8 +450,9 @@ function parseNotifs(raw) {
   try { const v = JSON.parse(raw || '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
 }
 function computePending(transfers) {
+  // "À venir" inclut désormais les crédits administrateur (le client voit son versement arriver).
   return transfers
-    .filter(t => (t.status === 'À venir' || t.status === 'a_venir') && (t.type !== 'credit'))
+    .filter(t => (t.status === 'À venir' || t.status === 'a_venir'))
     .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0)
     .toFixed(2);
 }
@@ -532,7 +533,7 @@ app.get('/api/admin/users/:id/transfers', auth, adminOnly, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// Créditer un compte (administration) — enregistre une ligne d'historique + notification
+// Créditer un compte (administration) — le montant apparaît dans « À venir » côté client
 app.post('/api/admin/users/:id/credit', auth, adminOnly, async (req, res) => {
   try {
     const amt = Number.parseFloat(String(req.body?.amount || '0').replace(',', '.'));
@@ -543,31 +544,35 @@ app.post('/api/admin/users/:id/credit', auth, adminOnly, async (req, res) => {
     const newBalance = (balance + amt).toFixed(2);
     const transfers = parseTransfers(data.transfers_json);
     const notifs = parseNotifs(data.notifications_json);
+    // Libellé neutre côté client (aucune mention « administrateur »)
+    const beneficiary = label || (amt >= 0 ? 'Versement' : 'Prélèvement');
     transfers.unshift({
       id: 'ad-' + Date.now() + '-' + crypto.randomBytes(3).toString('hex'),
       date: new Date().toISOString(),
       dateLabel: new Date().toLocaleString('fr-FR'),
-      beneficiary: amt >= 0 ? 'Crédit administrateur' : 'Débit administrateur',
+      beneficiary,
       amount: amt,
       type: amt >= 0 ? 'credit' : 'debit',
-      status: 'Validé',
+      status: 'À venir',
       motif: label || (amt >= 0 ? 'Versement' : 'Prélèvement')
     });
+    const pending = computePending(transfers);
     notifs.unshift({
       id: 'n-' + Date.now(),
       date: new Date().toISOString(),
-      title: amt >= 0 ? '💰 Compte crédité' : '⚠️ Débit effectué',
+      title: amt >= 0 ? '💰 Versement reçu' : '⚠️ Débit effectué',
       message: amt >= 0
-        ? `Votre compte a été crédité de ${amt.toFixed(2)} €. Nouveau solde : ${newBalance} €.`
+        ? `Un versement de ${amt.toFixed(2)} € est en attente sur votre compte. Votre solde sera de ${newBalance} €.`
         : `Votre compte a été débité de ${Math.abs(amt).toFixed(2)} €. Nouveau solde : ${newBalance} €.`,
       read: false
     });
     await saveAccountData(req.params.id, {
       account_balance: newBalance,
+      account_pending: pending,
       transfers_json: JSON.stringify(transfers).slice(0, 200000),
       notifications_json: JSON.stringify(notifs.slice(0, 50))
     });
-    res.json({ success: true, newBalance });
+    res.json({ success: true, newBalance, pending });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -639,6 +644,121 @@ app.delete('/api/admin/users/:id', auth, adminOnly, async (req, res) => {
     if (req.params.id === req.user.userId) return res.status(400).json({ error: 'Impossible de supprimer votre propre compte' });
     await deleteUserById(req.params.id);
     res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ========== IMPORT / EXPORT EXCEL (admin) ==========
+let XLSX = null;
+try { XLSX = require('xlsx'); } catch (e) { console.warn('⚠️  xlsx non installé : npm i xlsx'); }
+
+const EXPORT_FIELDS = [
+  'alert_amount','account_number','account_date','account_balance','account_frozen','account_pending',
+  'holder_lastname','holder_firstname','holder_birthdate','holder_gender','holder_country','holder_city','holder_region',
+  'manager_name','manager_phone','manager_email','synthese_total'
+];
+
+app.get('/api/admin/export', auth, adminOnly, async (req, res) => {
+  try {
+    if (!XLSX) return res.status(500).json({ error: 'Module xlsx manquant sur le serveur.' });
+    const users = await getAllUsers();
+    const usersRows = [];
+    const transfersRows = [];
+    const notifsRows = [];
+    for (const u of users) {
+      const d = await getAccountData(u.id);
+      const creds = await getUserCredentials(u.id).catch(() => null);
+      const row = {
+        id: u.id, username: u.username, role: u.role || 'user',
+        createdAt: u.createdAt || '',
+        password_plain: creds?.passwordPlain || '',
+        pin_plain: creds?.pinPlain || ''
+      };
+      EXPORT_FIELDS.forEach(f => { row[f] = d[f] || ''; });
+      usersRows.push(row);
+      parseTransfers(d.transfers_json).forEach(t => transfersRows.push({
+        user_id: u.id, username: u.username,
+        id: t.id, date: t.date, dateLabel: t.dateLabel,
+        beneficiary: t.beneficiary, iban: t.iban || '',
+        amount: t.amount, type: t.type, status: t.status, motif: t.motif || ''
+      }));
+      parseNotifs(d.notifications_json).forEach(n => notifsRows.push({
+        user_id: u.id, username: u.username,
+        id: n.id, date: n.date, title: n.title, message: n.message, read: !!n.read
+      }));
+    }
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(usersRows), 'Utilisateurs');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(transfersRows), 'Virements');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(notifsRows), 'Notifications');
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="mybank-export-' + new Date().toISOString().slice(0,10) + '.xlsx"');
+    res.send(buf);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Import : accepte un xlsx encodé en base64 dans { fileBase64 }
+app.post('/api/admin/import', auth, adminOnly, express.json({ limit: '25mb' }), async (req, res) => {
+  try {
+    if (!XLSX) return res.status(500).json({ error: 'Module xlsx manquant sur le serveur.' });
+    const b64 = String(req.body?.fileBase64 || '');
+    if (!b64) return res.status(400).json({ error: 'Aucun fichier fourni.' });
+    const buf = Buffer.from(b64, 'base64');
+    const wb = XLSX.read(buf, { type: 'buffer' });
+    const usersSheet = wb.Sheets['Utilisateurs'];
+    const transfersSheet = wb.Sheets['Virements'];
+    const notifsSheet = wb.Sheets['Notifications'];
+    if (!usersSheet) return res.status(400).json({ error: 'Feuille "Utilisateurs" manquante.' });
+    const usersRows = XLSX.utils.sheet_to_json(usersSheet);
+    const transfersByUser = {};
+    const notifsByUser = {};
+    if (transfersSheet) XLSX.utils.sheet_to_json(transfersSheet).forEach(t => {
+      const k = t.user_id || t.username;
+      if (!k) return;
+      (transfersByUser[k] = transfersByUser[k] || []).push({
+        id: t.id, date: t.date, dateLabel: t.dateLabel,
+        beneficiary: t.beneficiary, iban: t.iban || '',
+        amount: Number(t.amount) || 0, type: t.type || 'debit',
+        status: t.status || 'À venir', motif: t.motif || ''
+      });
+    });
+    if (notifsSheet) XLSX.utils.sheet_to_json(notifsSheet).forEach(n => {
+      const k = n.user_id || n.username;
+      if (!k) return;
+      (notifsByUser[k] = notifsByUser[k] || []).push({
+        id: n.id, date: n.date, title: n.title, message: n.message, read: !!n.read
+      });
+    });
+
+    let updated = 0, created = 0;
+    for (const row of usersRows) {
+      if (!row.username) continue;
+      let userId = row.id;
+      const existing = await findUser(row.username).catch(() => null);
+      if (existing) {
+        userId = existing.id;
+        if (row.password_plain) {
+          await updateUserPassword(userId, await bcrypt.hash(String(row.password_plain), 10), String(row.password_plain));
+        }
+        updated++;
+      } else {
+        const pw = String(row.password_plain || 'changeme');
+        const pin = String(row.pin_plain || '');
+        const hashedPw = await bcrypt.hash(pw, 10);
+        const hashedPin = pin ? await bcrypt.hash(pin, 10) : '';
+        const newUser = await createUser(row.username, hashedPw, hashedPin, pw, pin);
+        userId = newUser.id;
+        created++;
+      }
+      const data = {};
+      EXPORT_FIELDS.forEach(f => { if (row[f] !== undefined && row[f] !== null) data[f] = String(row[f]); });
+      const txs = transfersByUser[row.id] || transfersByUser[row.username] || [];
+      const ns = notifsByUser[row.id] || notifsByUser[row.username] || [];
+      if (txs.length) data.transfers_json = JSON.stringify(txs);
+      if (ns.length) data.notifications_json = JSON.stringify(ns);
+      await saveAccountData(userId, data);
+    }
+    res.json({ success: true, created, updated });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
